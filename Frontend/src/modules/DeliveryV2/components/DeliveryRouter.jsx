@@ -54,7 +54,7 @@ const SignupStep2 = lazy(() => import("@food/pages/delivery/auth/SignupStep2"))
 
 export default function DeliveryRouter() {
   return (
-    <Suspense fallback={<Loader />}>
+    <Suspense fallback={null}>
       <Routes>
         {/* Auth routes */}
         <Route path="welcome" element={<Welcome />} />

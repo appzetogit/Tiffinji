@@ -35,7 +35,7 @@ import NotificationsV2 from './pages/NotificationsV2';
 
 const DeliveryV2Router = () => {
   return (
-    <Suspense fallback={<Loader />}>
+    <Suspense fallback={null}>
       <Routes>
         {/* Auth routes */}
         <Route path="welcome" element={<Welcome />} />

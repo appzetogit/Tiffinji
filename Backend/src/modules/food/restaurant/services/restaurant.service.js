@@ -1480,15 +1480,23 @@ export const getApprovedRestaurantByIdOrSlug = async (idOrSlug) => {
     // ObjectId path
     if (/^[0-9a-fA-F]{24}$/.test(value)) {
         doc = await FoodRestaurant.findOne({ _id: value, status: 'approved' }).lean();
-    } else {
-        // Slug path: use normalized field for index-friendly exact match.
+    }
+    
+    if (!doc) {
+        // Slug / Name path: try slug, normalized name, and case-insensitive name match
         const restaurantNameNormalized = normalizeName(value);
+        const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const queryOr = [
+            { slug: value.toLowerCase() },
+            { restaurantName: { $regex: new RegExp(`^${escaped}$`, 'i') } }
+        ];
         if (restaurantNameNormalized) {
-            doc = await FoodRestaurant.findOne({
-                status: 'approved',
-                restaurantNameNormalized
-            }).lean();
+            queryOr.unshift({ restaurantNameNormalized });
         }
+        doc = await FoodRestaurant.findOne({
+            status: 'approved',
+            $or: queryOr
+        }).lean();
     }
 
     if (!doc) return null;

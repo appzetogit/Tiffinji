@@ -57,7 +57,7 @@ const VerificationPending = lazy(() => import("@food/pages/restaurant/auth/Verif
 export default function RestaurantRouter() {
   return (
     <div className="restaurant-theme">
-      <Suspense fallback={<Loader />}>
+      <Suspense fallback={null}>
         <Routes>
           {/* Auth Routes */}
           <Route path="welcome" element={<Welcome />} />

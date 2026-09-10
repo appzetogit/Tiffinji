@@ -59,8 +59,12 @@ function RouteTransitionLoader() {
       const toPath = location.pathname
       prevPathnameRef.current = location.pathname
 
-      // Do not trigger transition animation when entering/leaving splash screen
-      if (fromPath?.includes("/splash") || toPath?.includes("/splash")) {
+      // Do not trigger transition animation when entering/leaving splash screen, delivery, or restaurant apps
+      if (
+        fromPath?.includes("/splash") || toPath?.includes("/splash") ||
+        fromPath?.includes("/delivery") || toPath?.includes("/delivery") ||
+        fromPath?.includes("/restaurant") || toPath?.includes("/restaurant")
+      ) {
         return
       }
 
