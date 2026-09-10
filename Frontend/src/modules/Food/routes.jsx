@@ -42,49 +42,7 @@ function ScrollToTop() {
 
 // Global page transition loader screen ONLY on page-to-page navigation and back button press
 function RouteTransitionLoader() {
-  const location = useLocation()
-  const [loading, setLoading] = useState(false)
-  const isFirstRenderRef = useRef(true)
-  const prevPathnameRef = useRef(location.pathname)
-
-  useEffect(() => {
-    if (isFirstRenderRef.current) {
-      isFirstRenderRef.current = false
-      prevPathnameRef.current = location.pathname
-      return
-    }
-
-    if (prevPathnameRef.current !== location.pathname) {
-      const fromPath = prevPathnameRef.current
-      const toPath = location.pathname
-      prevPathnameRef.current = location.pathname
-
-      // Do not trigger transition animation when entering/leaving splash screen, delivery, or restaurant apps
-      if (
-        fromPath?.includes("/splash") || toPath?.includes("/splash") ||
-        fromPath?.includes("/delivery") || toPath?.includes("/delivery") ||
-        fromPath?.includes("/restaurant") || toPath?.includes("/restaurant")
-      ) {
-        return
-      }
-
-      setLoading(true)
-      const timer = setTimeout(() => {
-        setLoading(false)
-      }, 700)
-
-      return () => clearTimeout(timer)
-    }
-  }, [location.pathname])
-
-  if (!loading) return null
-
-  return (
-    <MenuScanAnimation
-      duration={700}
-      onComplete={() => setLoading(false)}
-    />
-  )
+  return null
 }
 
 export default function App() {

@@ -272,7 +272,14 @@ export const useRestaurantNotifications = () => {
     }, ALERT_LOOP_INTERVAL_MS);
   };
 
+  const isRestaurantRoute = () => {
+    if (typeof window === 'undefined') return false;
+    const p = String(window.location?.pathname || '').toLowerCase();
+    return p.includes('/restaurant') || p.startsWith('/food/restaurant');
+  };
+
   const handleIncomingOrderAlert = (orderData, source = 'unknown') => {
+    if (!isRestaurantRoute()) return;
     const isSocket = source === 'socket';
     
     // For scheduled orders, don't alert at all if they are far away (more than 15 mins)
@@ -343,7 +350,7 @@ export const useRestaurantNotifications = () => {
   useEffect(() => {
     if (!restaurantId) return;
 
-    const ALERT_POLL_MS = 8000;
+    const ALERT_POLL_MS = isConnected ? 25000 : 8000;
     let isCancelled = false;
 
     const pollOrders = async () => {
@@ -909,6 +916,7 @@ export const useRestaurantNotifications = () => {
   }, []);
 
   const playNotificationSound = async (orderData = {}) => {
+    if (!isRestaurantRoute()) return;
     if (!isRestaurantOrderSoundAllowed()) {
       return;
     }

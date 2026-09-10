@@ -156,8 +156,9 @@ const RestaurantImageCarousel = React.memo(({ restaurant, priority = false, back
   useEffect(() => {
     if (bannerItems.length <= 1) return;
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       setCurrentItemIndex((prev) => (prev + 1) % bannerItems.length);
-    }, 2000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [bannerItems.length]);
 
@@ -165,8 +166,9 @@ const RestaurantImageCarousel = React.memo(({ restaurant, priority = false, back
   useEffect(() => {
     if (images.length <= 1) return;
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       setCurrentIndex((prev) => (prev + 1) % images.length);
-    }, 3500);
+    }, 7000);
     return () => clearInterval(interval);
   }, [images.length]);
 

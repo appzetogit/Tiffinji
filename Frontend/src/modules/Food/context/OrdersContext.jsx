@@ -25,7 +25,23 @@ export function OrdersProvider({ children }) {
     if (typeof window === "undefined") return []
     try {
       const saved = localStorage.getItem("userOrders")
-      return saved ? JSON.parse(saved) : []
+      const list = saved ? JSON.parse(saved) : []
+      if (Array.isArray(list)) {
+        const now = Date.now()
+        const TERMINAL = new Set(["delivered", "cancelled", "canceled", "completed", "failed", "cancelled_by_user", "cancelled_by_restaurant", "cancelled_by_admin"])
+        return list.filter((o) => {
+          if (!o) return false
+          const status = String(o.status || o.orderStatus || "").toLowerCase()
+          if (TERMINAL.has(status)) return false
+          const isTempId = String(o.id || o._id || "").startsWith("ORD-")
+          if (isTempId && o.createdAt) {
+            const age = now - new Date(o.createdAt).getTime()
+            if (age > 2 * 60 * 60 * 1000) return false
+          }
+          return true
+        })
+      }
+      return []
     } catch {
       return []
     }

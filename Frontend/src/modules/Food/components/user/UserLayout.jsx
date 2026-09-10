@@ -133,16 +133,8 @@ function UserLayoutShell() {
 }
 
 export default function UserLayout() {
-  const [introFinished, setIntroFinished] = useState(() => {
-    return !!(typeof window !== 'undefined' && sessionStorage.getItem("appIntroSeen"))
-  })
-
   return (
     <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a] transition-colors duration-200">
-      {!introFinished && (
-        <AppIntroSplash onComplete={() => setIntroFinished(true)} />
-      )}
-
       <CartProvider>
         <ProfileProvider>
           <LocationProvider>

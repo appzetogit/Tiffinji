@@ -88,7 +88,13 @@ export const useUserNotifications = () => {
         statusKey === lastOrderStatusToastRef.current.key &&
         now - lastOrderStatusToastRef.current.at < ORDER_STATUS_DEDUPE_MS;
 
-      if (isImportant && !isOrderTrackingScreen && !isDuplicateStatusToast) {
+      const currentPath = typeof window !== 'undefined' ? String(window.location?.pathname || '').toLowerCase() : '';
+      const isNonUserRoute =
+        currentPath.includes('/restaurant') ||
+        currentPath.includes('/delivery') ||
+        currentPath.includes('/admin');
+
+      if (isImportant && !isOrderTrackingScreen && !isDuplicateStatusToast && !isNonUserRoute) {
         lastOrderStatusToastRef.current = { key: statusKey, at: now };
         toast.dismiss(ORDER_STATUS_TOAST_ID);
         toast.message(title, {
@@ -167,19 +173,35 @@ export const useUserNotifications = () => {
       const title = orderId ? `Order ${orderId}` : 'Delivery OTP';
       const parts = [message, otp ? `OTP: ${otp}` : ''].filter(Boolean);
 
-      toast.dismiss(DROP_OTP_TOAST_ID);
-      toast.message(title, {
-        id: DROP_OTP_TOAST_ID,
-        description: parts.join(' — ') || 'Handover OTP from your delivery partner.',
-        duration: 12_000,
-      });
+      const currentPath = typeof window !== 'undefined' ? String(window.location?.pathname || '').toLowerCase() : '';
+      const isNonUserRoute =
+        currentPath.includes('/restaurant') ||
+        currentPath.includes('/delivery') ||
+        currentPath.includes('/admin');
+
+      if (!isNonUserRoute) {
+        toast.dismiss(DROP_OTP_TOAST_ID);
+        toast.message(title, {
+          id: DROP_OTP_TOAST_ID,
+          description: parts.join(' — ') || 'Handover OTP from your delivery partner.',
+          duration: 12_000,
+        });
+      }
     };
 
     const onAdminNotification = (payload) => {
-      toast.message(payload?.title || 'Notification', {
-        description: payload?.message || 'New broadcast notification received.',
-        duration: 8000,
-      });
+      const currentPath = typeof window !== 'undefined' ? String(window.location?.pathname || '').toLowerCase() : '';
+      const isNonUserRoute =
+        currentPath.includes('/restaurant') ||
+        currentPath.includes('/delivery') ||
+        currentPath.includes('/admin');
+
+      if (!isNonUserRoute) {
+        toast.message(payload?.title || 'Notification', {
+          description: payload?.message || 'New broadcast notification received.',
+          duration: 8000,
+        });
+      }
       dispatchNotificationInboxRefresh();
     };
 

@@ -21,8 +21,10 @@ const isDesktopOrWebView = () => {
   return !(isMobileUserAgent || isSmallViewport)
 }
 
-const shouldHideGlobalNotification = (pathname = "") =>
-  pathname === "/food/restaurant" || pathname.startsWith("/food/restaurant/orders")
+const isRestaurantRoute = (pathname = "") => {
+  const p = String(pathname || "").toLowerCase()
+  return p.includes("/restaurant") || p.startsWith("/food/restaurant")
+}
 
 export default function GlobalRestaurantOrderNotification() {
   const { pathname } = useLocation()
@@ -123,7 +125,7 @@ export default function GlobalRestaurantOrderNotification() {
       }
     : null
 
-  const shouldShow = enabled && order && !shouldHideGlobalNotification(pathname)
+  const shouldShow = enabled && order && isRestaurantRoute(pathname)
   const alertLoopIntervalMs = 4500
   const alertLoopMaxMs = 120000
   const orderKey = order

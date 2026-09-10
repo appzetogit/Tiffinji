@@ -276,7 +276,14 @@ export const useDeliveryNotifications = () => {
     }, ALERT_LOOP_INTERVAL_MS);
   }, [stopAlertLoop]);
   
+  const isDeliveryRoute = () => {
+    if (typeof window === 'undefined') return false;
+    const p = String(window.location?.pathname || '').toLowerCase();
+    return p.includes('/delivery') || p.startsWith('/food/delivery');
+  };
+
   const playNotificationSound = useCallback(async (orderData = {}) => {
+    if (!isDeliveryRoute()) return;
     try {
       // Temporarily disabled native bridge sound trigger
       // const usedNativeBridge = await triggerWebViewNativeNotification(orderData);
@@ -298,15 +305,6 @@ export const useDeliveryNotifications = () => {
         audioRef.current.volume = 0.9;
       }
 
-      // audioRef.current.muted = false;
-      // audioRef.current.volume = 0.9;
-      // audioRef.current.currentTime = 0;
-      // audioRef.current.play().catch(error => {
-      //   // On strict autoplay environments, vibration/native bridge path stays active.
-      //   if (!error.message?.includes('user didn\'t interact') && !error.name?.includes('NotAllowedError')) {
-      //     debugWarn('Error playing notification sound:', error);
-      //   }
-      // });
     } catch (error) {
       if (!error.message?.includes('user didn\'t interact') && !error.name?.includes('NotAllowedError')) {
         debugWarn('Error playing sound:', error);

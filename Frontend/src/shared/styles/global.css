@@ -112,12 +112,19 @@
   --sidebar-ring: #f59e0b;
 }
 
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground m-0 min-h-screen;
+    text-rendering: optimizeSpeed;
+    -webkit-font-smoothing: antialiased;
   }
 }
 
@@ -125,9 +132,16 @@
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+
+  .gpu-accelerate {
+    will-change: transform, opacity;
+    transform: translateZ(0);
+    backface-visibility: hidden;
   }
 
   .content-auto {

@@ -230,10 +230,14 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
   }, []);
 
   const uniqueOrders = useMemo(() => {
-    const isMongoObjectId = (value) => /^[a-f0-9]{24}$/i.test(String(value || ""));
-    const serverKeys = new Set(
-      (apiOrders || []).map((o) => String(getOrderKey(o) || "")).filter(Boolean),
-    );
+    const serverKeys = new Set();
+    (apiOrders || []).forEach((o) => {
+      const keys = [o._id, o.orderId, o.id, o.orderMongoId, o.mongoId]
+        .map((k) => (k != null ? String(k).trim() : ""))
+        .filter(Boolean);
+      keys.forEach((k) => serverKeys.add(k));
+    });
+
     const seen = new Set();
 
     return [...apiOrders, ...contextOrders].filter((order) => {
@@ -244,15 +248,15 @@ function OrderTrackingCardInner({ hasBottomNav = true }) {
       if (invalidOrderIds.has(key)) {
         return false;
       }
-      // After first API sync, ignore stale local Mongo-like ids that are absent server-side.
-      // This prevents repeated verification calls for already-deleted orders.
-      if (
-        hasFetchedApi &&
-        isMongoObjectId(key) &&
-        !serverKeys.has(String(key))
-      ) {
-        return false;
+
+      // After first API sync, local context orders absent from server keys are stale and must be ignored.
+      if (hasFetchedApi) {
+        const isFromApi = serverKeys.has(String(key));
+        if (!isFromApi) {
+          return false;
+        }
       }
+
       seen.add(key);
       return true;
     });
