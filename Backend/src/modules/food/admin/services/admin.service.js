@@ -4405,13 +4405,31 @@ export async function getDeliveryPartnerById(id) {
         status: partner.status === 'rejected' ? 'blocked' : partner.status,
         profileImage: partner.profilePhoto ? { url: partner.profilePhoto } : null,
         documents: {
-            aadhar: (partner.aadharPhoto || partner.aadharNumber)
-                ? { number: partner.aadharNumber || null, document: partner.aadharPhoto || null }
+            aadhar: (partner.aadharFrontPhoto || partner.aadharPhoto || partner.aadharNumber)
+                ? {
+                    number: partner.aadharNumber || null,
+                    document: partner.aadharPhoto || partner.aadharFrontPhoto || null,
+                    front: partner.aadharFrontPhoto || partner.aadharPhoto || null,
+                    back: partner.aadharBackPhoto || null
+                }
                 : null,
             pan: (partner.panPhoto || partner.panNumber)
                 ? { number: partner.panNumber || null, document: partner.panPhoto || null }
                 : null,
-            drivingLicense: partner.drivingLicensePhoto ? { document: partner.drivingLicensePhoto } : null,
+            drivingLicense: (partner.drivingLicenseFrontPhoto || partner.drivingLicensePhoto || partner.drivingLicenseNumber)
+                ? {
+                    number: partner.drivingLicenseNumber || null,
+                    document: partner.drivingLicensePhoto || partner.drivingLicenseFrontPhoto || null,
+                    front: partner.drivingLicenseFrontPhoto || partner.drivingLicensePhoto || null,
+                    back: partner.drivingLicenseBackPhoto || null
+                }
+                : null,
+            vehicleRC: (partner.rcPhoto || partner.vehicleNumber)
+                ? {
+                    number: partner.vehicleNumber || null,
+                    document: partner.rcPhoto || null
+                }
+                : null,
             bankDetails:
                 partner.bankAccountHolderName || partner.bankAccountNumber || partner.bankIfscCode || partner.bankName
                     ? {

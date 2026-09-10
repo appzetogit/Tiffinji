@@ -658,10 +658,12 @@ export const getProfile = async (userId, role) => {
           : null,
         documents: {
           aadhar:
-            partner.aadharPhoto || partner.aadharNumber
+            partner.aadharFrontPhoto || partner.aadharPhoto || partner.aadharNumber
               ? {
                   number: partner.aadharNumber || null,
-                  document: partner.aadharPhoto || null,
+                  document: partner.aadharPhoto || partner.aadharFrontPhoto || null,
+                  front: partner.aadharFrontPhoto || partner.aadharPhoto || null,
+                  back: partner.aadharBackPhoto || null,
                 }
               : null,
           pan:
@@ -671,12 +673,22 @@ export const getProfile = async (userId, role) => {
                   document: partner.panPhoto || null,
                 }
               : null,
-          drivingLicense: partner.drivingLicensePhoto || partner.drivingLicenseNumber
-            ? {
-                number: partner.drivingLicenseNumber || null,
-                document: partner.drivingLicensePhoto || null,
-              }
-            : null,
+          drivingLicense:
+            partner.drivingLicenseFrontPhoto || partner.drivingLicensePhoto || partner.drivingLicenseNumber
+              ? {
+                  number: partner.drivingLicenseNumber || null,
+                  document: partner.drivingLicensePhoto || partner.drivingLicenseFrontPhoto || null,
+                  front: partner.drivingLicenseFrontPhoto || partner.drivingLicensePhoto || null,
+                  back: partner.drivingLicenseBackPhoto || null,
+                }
+              : null,
+          vehicleRC:
+            partner.rcPhoto || partner.vehicleNumber
+              ? {
+                  number: partner.vehicleNumber || null,
+                  document: partner.rcPhoto || null,
+                }
+              : null,
           bankDetails:
             partner.bankAccountHolderName ||
             partner.bankAccountNumber ||

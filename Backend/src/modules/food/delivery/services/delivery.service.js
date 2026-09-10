@@ -30,17 +30,34 @@ export const registerDeliveryPartner = async (payload, files) => {
     if (files?.profilePhoto?.[0]) {
         images.profilePhoto = await uploadImageBuffer(files.profilePhoto[0].buffer, 'food/delivery/profile');
     }
+    if (files?.aadharFrontPhoto?.[0]) {
+        images.aadharFrontPhoto = await uploadImageBuffer(files.aadharFrontPhoto[0].buffer, 'food/delivery/aadhar');
+    }
+    if (files?.aadharBackPhoto?.[0]) {
+        images.aadharBackPhoto = await uploadImageBuffer(files.aadharBackPhoto[0].buffer, 'food/delivery/aadhar');
+    }
     if (files?.aadharPhoto?.[0]) {
         images.aadharPhoto = await uploadImageBuffer(files.aadharPhoto[0].buffer, 'food/delivery/aadhar');
+    } else if (images.aadharFrontPhoto) {
+        images.aadharPhoto = images.aadharFrontPhoto;
     }
     if (files?.panPhoto?.[0]) {
         images.panPhoto = await uploadImageBuffer(files.panPhoto[0].buffer, 'food/delivery/pan');
     }
+    if (files?.drivingLicenseFrontPhoto?.[0]) {
+        images.drivingLicenseFrontPhoto = await uploadImageBuffer(files.drivingLicenseFrontPhoto[0].buffer, 'food/delivery/license');
+    }
+    if (files?.drivingLicenseBackPhoto?.[0]) {
+        images.drivingLicenseBackPhoto = await uploadImageBuffer(files.drivingLicenseBackPhoto[0].buffer, 'food/delivery/license');
+    }
     if (files?.drivingLicensePhoto?.[0]) {
-        images.drivingLicensePhoto = await uploadImageBuffer(
-            files.drivingLicensePhoto[0].buffer,
-            'food/delivery/license'
-        );
+        images.drivingLicensePhoto = await uploadImageBuffer(files.drivingLicensePhoto[0].buffer, 'food/delivery/license');
+    } else if (images.drivingLicenseFrontPhoto) {
+        images.drivingLicensePhoto = images.drivingLicenseFrontPhoto;
+    }
+    const rcFile = files?.rcPhoto?.[0] || files?.vehicleRcPhoto?.[0];
+    if (rcFile) {
+        images.rcPhoto = await uploadImageBuffer(rcFile.buffer, 'food/delivery/rc');
     }
 
     const partner = await FoodDeliveryPartner.create({
@@ -144,6 +161,33 @@ export const updateDeliveryPartnerProfile = async (userId, payload, files) => {
 
     if (files?.profilePhoto?.[0]) {
         partner.profilePhoto = await uploadImageBuffer(files.profilePhoto[0].buffer, 'food/delivery/profile');
+    }
+    if (files?.aadharFrontPhoto?.[0]) {
+        partner.aadharFrontPhoto = await uploadImageBuffer(files.aadharFrontPhoto[0].buffer, 'food/delivery/aadhar');
+        if (!partner.aadharPhoto) partner.aadharPhoto = partner.aadharFrontPhoto;
+    }
+    if (files?.aadharBackPhoto?.[0]) {
+        partner.aadharBackPhoto = await uploadImageBuffer(files.aadharBackPhoto[0].buffer, 'food/delivery/aadhar');
+    }
+    if (files?.aadharPhoto?.[0]) {
+        partner.aadharPhoto = await uploadImageBuffer(files.aadharPhoto[0].buffer, 'food/delivery/aadhar');
+    }
+    if (files?.panPhoto?.[0]) {
+        partner.panPhoto = await uploadImageBuffer(files.panPhoto[0].buffer, 'food/delivery/pan');
+    }
+    if (files?.drivingLicenseFrontPhoto?.[0]) {
+        partner.drivingLicenseFrontPhoto = await uploadImageBuffer(files.drivingLicenseFrontPhoto[0].buffer, 'food/delivery/license');
+        if (!partner.drivingLicensePhoto) partner.drivingLicensePhoto = partner.drivingLicenseFrontPhoto;
+    }
+    if (files?.drivingLicenseBackPhoto?.[0]) {
+        partner.drivingLicenseBackPhoto = await uploadImageBuffer(files.drivingLicenseBackPhoto[0].buffer, 'food/delivery/license');
+    }
+    if (files?.drivingLicensePhoto?.[0]) {
+        partner.drivingLicensePhoto = await uploadImageBuffer(files.drivingLicensePhoto[0].buffer, 'food/delivery/license');
+    }
+    const rcFile = files?.rcPhoto?.[0] || files?.vehicleRcPhoto?.[0];
+    if (rcFile) {
+        partner.rcPhoto = await uploadImageBuffer(rcFile.buffer, 'food/delivery/rc');
     }
 
     await partner.save();

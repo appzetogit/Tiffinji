@@ -104,7 +104,14 @@ const restaurantRegisterSchema = z.object({
 });
 
 export const validateRestaurantRegisterDto = (body) => {
-    const result = restaurantRegisterSchema.safeParse(body);
+    const processed = { ...body };
+    if (typeof processed.panNumber === 'string') {
+        processed.panNumber = processed.panNumber.trim().toUpperCase();
+    }
+    if (typeof processed.ifscCode === 'string') {
+        processed.ifscCode = processed.ifscCode.trim().toUpperCase();
+    }
+    const result = restaurantRegisterSchema.safeParse(processed);
     if (!result.success) {
         throw new ValidationError(result.error.errors[0].message);
     }

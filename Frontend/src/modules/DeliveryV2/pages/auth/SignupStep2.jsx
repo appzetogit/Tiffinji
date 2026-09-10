@@ -434,9 +434,11 @@ export default function SignupStep2() {
     appendFileToForm(formData, "profilePhoto", documents.profilePhoto, "profile.webp");
     appendFileToForm(formData, "aadharFrontPhoto", documents.aadharFrontPhoto, "aadhar_front.webp");
     appendFileToForm(formData, "aadharBackPhoto", documents.aadharBackPhoto, "aadhar_back.webp");
+    appendFileToForm(formData, "aadharPhoto", documents.aadharFrontPhoto, "aadhar.webp");
     appendFileToForm(formData, "panPhoto", documents.panPhoto, "pan.webp");
     appendFileToForm(formData, "drivingLicenseFrontPhoto", documents.drivingLicenseFrontPhoto, "dl_front.webp");
     appendFileToForm(formData, "drivingLicenseBackPhoto", documents.drivingLicenseBackPhoto, "dl_back.webp");
+    appendFileToForm(formData, "drivingLicensePhoto", documents.drivingLicenseFrontPhoto, "driving_license.webp");
     appendFileToForm(formData, "rcPhoto", documents.rcPhoto, "rc.webp");
 
     // Try to get FCM token before registering

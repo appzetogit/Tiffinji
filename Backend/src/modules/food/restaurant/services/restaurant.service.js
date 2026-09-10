@@ -326,10 +326,7 @@ export const registerRestaurant = async (payload, files) => {
         });
     }
 
-    if (!menuPdf) {
-        throw new ValidationError('Menu PDF is required');
-    }
-
+    // menuPdf is optional during initial restaurant registration
     const normalizedOpeningTime = normalizeRestaurantTime(openingTime);
     const normalizedClosingTime = normalizeRestaurantTime(closingTime);
     const openingMinutes = timeToMinutes(normalizedOpeningTime);
