@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Link } from "react-router-dom"
 import api from "@food/api"
 import {
   UtensilsCrossed,
@@ -448,13 +448,13 @@ export default function MasterLandingPage() {
                 src="https://b.zmtcdn.com/data/webuikit/23e930757c3df49840c482a8638bf5c31556001144.png"
                 alt="Google Play"
                 className="h-12 object-contain cursor-pointer"
-                onClick={() => window.open(landingSettings?.appLinks?.playStore || 'https://play.google.com/store/apps/details?id=com.tiffinji.bite.user', '_blank')}
+                onClick={() => window.open(landingSettings?.appLinks?.playStore || 'https://play.google.com/store/search?q=tiffinji&c=apps&hl=en', '_blank')}
               />
               <img
                 src="https://b.zmtcdn.com/data/webuikit/9f0c85a5e33adb783fa0aef667075f9e1556003622.png"
                 alt="App Store"
                 className="h-12 object-contain cursor-pointer"
-                onClick={() => window.open(landingSettings?.appLinks?.appStore || '#', '_blank')}
+                onClick={() => window.open(landingSettings?.appLinks?.appStore || 'https://play.google.com/store/search?q=tiffinji&c=apps&hl=en', '_blank')}
               />
             </div>
           </div>
@@ -495,43 +495,80 @@ export default function MasterLandingPage() {
 
             <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-8">
               <div>
-                <h4 className="font-bold text-lg mb-6 uppercase tracking-wider text-gray-200">About IB</h4>
+                <h4 className="font-bold text-lg mb-6 uppercase tracking-wider text-gray-200">About Tiffinji</h4>
                 <ul className="space-y-3 text-gray-400 font-medium">
-                  {(landingSettings?.footerLinks?.about || [
-                    { label: 'Who We Are', url: '#' },
-                    { label: 'Blog', url: '#' },
-                    { label: 'Work With Us', url: '#' },
-                    { label: 'Investor Relations', url: '#' },
-                    { label: 'Report Fraud', url: '#' }
-                  ]).map((link, i) => (
-                    <li key={i}><a href={link.url} className="hover:text-white transition-colors">{link.label}</a></li>
-                  ))}
+                  {[
+                    { label: 'Who We Are', fallback: '/about' },
+                    { label: 'Work With Us', fallback: 'https://play.google.com/store/search?q=tiffinji&c=apps&hl=en' },
+                    { label: 'Investor Relations', fallback: '/about' }
+                  ].map((item, i) => {
+                    const customLink = landingSettings?.footerLinks?.about?.[i];
+                    const label = customLink?.label || item.label;
+                    const rawUrl = customLink?.url;
+                    const url = rawUrl && rawUrl !== '#' ? rawUrl : item.fallback;
+                    const isExternal = url.startsWith('http://') || url.startsWith('https://');
+                    return (
+                      <li key={i}>
+                        {isExternal ? (
+                          <a href={url} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">{label}</a>
+                        ) : (
+                          <Link to={url} className="hover:text-white transition-colors">{label}</Link>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
 
               <div>
                 <h4 className="font-bold text-lg mb-6 uppercase tracking-wider text-gray-200">For Restaurants</h4>
                 <ul className="space-y-3 text-gray-400 font-medium">
-                  {(landingSettings?.footerLinks?.forRestaurants || [
-                    { label: 'Partner With Us', url: '#' },
-                    { label: 'Apps For You', url: '#' }
-                  ]).map((link, i) => (
-                    <li key={i}><a href={link.url} className="hover:text-white transition-colors">{link.label}</a></li>
-                  ))}
+                  {[
+                    { label: 'Partner With Us', fallback: 'https://play.google.com/store/apps/details?id=com.tiffinji.restaurant' },
+                    { label: 'Apps For You', fallback: 'https://play.google.com/store/search?q=tiffinji&c=apps' }
+                  ].map((item, i) => {
+                    const customLink = landingSettings?.footerLinks?.forRestaurants?.[i];
+                    const label = customLink?.label || item.label;
+                    const rawUrl = customLink?.url;
+                    const url = rawUrl && rawUrl !== '#' ? rawUrl : item.fallback;
+                    const isExternal = url.startsWith('http://') || url.startsWith('https://');
+                    return (
+                      <li key={i}>
+                        {isExternal ? (
+                          <a href={url} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">{label}</a>
+                        ) : (
+                          <Link to={url} className="hover:text-white transition-colors">{label}</Link>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
 
               <div>
                 <h4 className="font-bold text-lg mb-6 uppercase tracking-wider text-gray-200">Learn More</h4>
                 <ul className="space-y-3 text-gray-400 font-medium">
-                  {(landingSettings?.footerLinks?.learnMore || [
-                    { label: 'Privacy', url: '#' },
-                    { label: 'Security', url: '#' },
-                    { label: 'Terms', url: '#' },
-                    { label: 'Sitemap', url: '#' }
-                  ]).map((link, i) => (
-                    <li key={i}><a href={link.url} className="hover:text-white transition-colors">{link.label}</a></li>
-                  ))}
+                  {[
+                    { label: 'Privacy', fallback: '/privacy' },
+                    { label: 'Security', fallback: '/privacy' },
+                    { label: 'Terms', fallback: '/terms' },
+                    { label: 'Sitemap', fallback: '/about' }
+                  ].map((item, i) => {
+                    const customLink = landingSettings?.footerLinks?.learnMore?.[i];
+                    const label = customLink?.label || item.label;
+                    const rawUrl = customLink?.url;
+                    const url = rawUrl && rawUrl !== '#' ? rawUrl : item.fallback;
+                    const isExternal = url.startsWith('http://') || url.startsWith('https://');
+                    return (
+                      <li key={i}>
+                        {isExternal ? (
+                          <a href={url} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">{label}</a>
+                        ) : (
+                          <Link to={url} className="hover:text-white transition-colors">{label}</Link>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             </div>
@@ -571,19 +608,19 @@ export default function MasterLandingPage() {
                 src="https://b.zmtcdn.com/data/webuikit/23e930757c3df49840c482a8638bf5c31556001144.png"
                 alt="Google Play"
                 className="h-10 opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
-                onClick={() => window.open(landingSettings?.appLinks?.playStore || 'https://play.google.com/store/apps/details?id=com.tiffinji.bite.user', '_blank')}
+                onClick={() => window.open(landingSettings?.appLinks?.playStore || 'https://play.google.com/store/search?q=tiffinji&c=apps&hl=en', '_blank')}
               />
               <img
                 src="https://b.zmtcdn.com/data/webuikit/9f0c85a5e33adb783fa0aef667075f9e1556003622.png"
                 alt="App Store"
                 className="h-10 opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
-                onClick={() => window.open(landingSettings?.appLinks?.appStore || '#', '_blank')}
+                onClick={() => window.open(landingSettings?.appLinks?.appStore || 'https://play.google.com/store/search?q=tiffinji&c=apps&hl=en', '_blank')}
               />
             </div>
           </div>
 
           <div className="text-gray-500 text-sm font-medium mt-10 text-center md:text-left leading-relaxed">
-            By continuing past this page, you agree to our Terms of Service, Cookie Policy, Privacy Policy and Content Policies. All trademarks are properties of their respective owners. <br />
+            By continuing past this page, you agree to our <Link to="/terms" className="underline hover:text-white">Terms of Service</Link>, Cookie Policy, <Link to="/privacy" className="underline hover:text-white">Privacy Policy</Link> and Content Policies. All trademarks are properties of their respective owners. <br />
             {landingSettings?.copyrightText || '© 2026 Tiffinji™ Ltd. All rights reserved.'}
           </div>
         </div>

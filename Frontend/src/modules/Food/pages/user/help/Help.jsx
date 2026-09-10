@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { Link } from "react-router-dom"
+import { useState, useEffect } from "react"
+import { Link, useNavigate } from "react-router-dom"
 import {
   Search,
   HelpCircle,
@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowRight,
+  ArrowLeft,
   FileText,
   Shield,
   Clock,
@@ -185,9 +186,22 @@ const helpCategories = [
 ]
 
 export default function Help() {
+  const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState("")
   const [expandedCategory, setExpandedCategory] = useState(null)
   const [expandedQuestion, setExpandedQuestion] = useState(null)
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
+
+  const handleBack = () => {
+    if (window.history.length > 2) {
+      navigate(-1)
+    } else {
+      navigate('/')
+    }
+  }
 
   const filteredCategories = helpCategories.filter(category =>
     category.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -209,6 +223,12 @@ export default function Help() {
   return (
     <AnimatedPage className="min-h-screen bg-gradient-to-b from-yellow-50/30 via-white to-orange-50/20 dark:from-[#0a0a0a] dark:via-[#0a0a0a] dark:to-[#0a0a0a] p-4 md:p-6 lg:p-8">
       <div className="max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto space-y-4 md:space-y-5 lg:space-y-6">
+        <div className="flex items-center mb-2">
+          <Button variant="ghost" size="icon" onClick={handleBack} className="h-9 w-9 md:h-10 md:w-10 p-0 hover:bg-gray-100 dark:hover:bg-gray-800">
+            <ArrowLeft className="h-5 w-5 md:h-6 md:w-6 text-gray-900 dark:text-white" />
+          </Button>
+        </div>
+
         <ScrollReveal>
           <div className="text-center space-y-3 md:space-y-4 mb-6 md:mb-8">
             <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold">Help Center</h1>

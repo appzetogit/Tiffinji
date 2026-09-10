@@ -52,8 +52,24 @@ const RedirectToFood = () => {
 const MasterLandingPage = lazy(() => import('./MasterLandingPage'))
 const AdminRouter = lazy(() => import('../modules/Food/components/admin/AdminRouter'))
 
+// Lazy load standalone public legal & about pages
+const About = lazy(() => import('../modules/Food/pages/user/profile/About'))
+const Privacy = lazy(() => import('../modules/Food/pages/user/profile/Privacy'))
+const Terms = lazy(() => import('../modules/Food/pages/user/profile/Terms'))
+const Refund = lazy(() => import('../modules/Food/pages/user/profile/Refund'))
+const Shipping = lazy(() => import('../modules/Food/pages/user/profile/Shipping'))
+const Cancellation = lazy(() => import('../modules/Food/pages/user/profile/Cancellation'))
+const ReportSafetyEmergency = lazy(() => import('../modules/Food/pages/user/profile/ReportSafetyEmergency'))
+const Help = lazy(() => import('../modules/Food/pages/user/help/Help'))
+
 const AppRoutes = () => {
   const location = useLocation()
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0)
+    }
+  }, [location.pathname])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -81,6 +97,18 @@ const AppRoutes = () => {
       <Route path="/user/auth/*" element={<AuthApp />} />
       <Route path="/delivery/auth/*" element={<AuthApp />} />
       <Route path="/restaurant/auth/*" element={<AuthApp />} />
+
+      {/* Standalone Legal & Informational Pages */}
+      <Route path="/about" element={<Suspense fallback={<PageLoader />}><About /></Suspense>} />
+      <Route path="/who-we-are" element={<Suspense fallback={<PageLoader />}><About /></Suspense>} />
+      <Route path="/privacy" element={<Suspense fallback={<PageLoader />}><Privacy /></Suspense>} />
+      <Route path="/terms" element={<Suspense fallback={<PageLoader />}><Terms /></Suspense>} />
+      <Route path="/refund" element={<Suspense fallback={<PageLoader />}><Refund /></Suspense>} />
+      <Route path="/shipping" element={<Suspense fallback={<PageLoader />}><Shipping /></Suspense>} />
+      <Route path="/cancellation" element={<Suspense fallback={<PageLoader />}><Cancellation /></Suspense>} />
+      <Route path="/report-safety-emergency" element={<Suspense fallback={<PageLoader />}><ReportSafetyEmergency /></Suspense>} />
+      <Route path="/help" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />
+      <Route path="/blog" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />
 
       {/* Food Module - Handle both /food and root / for the user app */}
       <Route path="/food/*" element={<FoodAppWrapper />} />

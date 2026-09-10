@@ -292,11 +292,12 @@ export default function Profile() {
     };
   }, []);
 
+  const USER_APP_PLAYSTORE_URL = "https://play.google.com/store/apps/details?id=com.company.tiffinji&hl=en";
   const refId =
     userProfile?._id || userProfile?.id || userProfile?.referralCode || "";
   const referralLink = refId
-    ? `${window.location.origin}/food/user/auth/login?ref=${encodeURIComponent(String(refId))}`
-    : "";
+    ? `${USER_APP_PLAYSTORE_URL}&referrer=ref%3D${encodeURIComponent(String(refId))}`
+    : USER_APP_PLAYSTORE_URL;
 
   const handleShareReferral = async () => {
     if (!referralLink) return;

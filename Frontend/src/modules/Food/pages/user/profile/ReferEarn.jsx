@@ -78,10 +78,11 @@ export default function ReferEarn() {
     };
   }, []);
 
+  const USER_APP_PLAYSTORE_URL = "https://play.google.com/store/apps/details?id=com.company.tiffinji&hl=en";
   const refId = userProfile?._id || userProfile?.id || userProfile?.referralCode || "";
   const referralLink = refId
-    ? `${window.location.origin}/food/user/auth/login?ref=${encodeURIComponent(String(refId))}`
-    : "";
+    ? `${USER_APP_PLAYSTORE_URL}&referrer=ref%3D${encodeURIComponent(String(refId))}`
+    : USER_APP_PLAYSTORE_URL;
 
   const shareText = useMemo(() => {
     const rewardText = stats.rewardAmount > 0 ? `\u20B9${stats.rewardAmount}` : "rewards";

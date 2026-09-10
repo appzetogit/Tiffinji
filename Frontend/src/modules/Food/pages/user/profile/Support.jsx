@@ -6,10 +6,12 @@ import { Input } from "@food/components/ui/input"
 import { Textarea } from "@food/components/ui/textarea"
 import { Card, CardContent } from "@food/components/ui/card"
 import { orderAPI, restaurantAPI, supportAPI, authAPI } from "@food/api"
+import { useAppLocation } from "@food/hooks/useAppLocation"
 import { toast } from "sonner"
 import { ArrowLeft, Building2, HelpCircle, ShoppingBag, ChevronRight } from "lucide-react"
 
 export default function Support() {
+  const { zoneId, location: userLocation, effectiveLocation } = useAppLocation()
   const [step, setStep] = useState("pick")
   const [type, setType] = useState("")
   const [orders, setOrders] = useState([])
@@ -55,7 +57,16 @@ export default function Support() {
 
   const fetchRestaurants = async () => {
     try {
-      const res = await restaurantAPI.getRestaurants({ limit: 20, page: 1 })
+      const params = { limit: 100, page: 1 }
+      if (zoneId) {
+        params.zoneId = zoneId
+      }
+      const loc = effectiveLocation || userLocation
+      if (loc?.latitude && loc?.longitude) {
+        params.lat = loc.latitude
+        params.lng = loc.longitude
+      }
+      const res = await restaurantAPI.getRestaurants(params)
       const list = res?.data?.data?.restaurants || res?.data?.restaurants || []
       setRestaurants(list)
     } catch {

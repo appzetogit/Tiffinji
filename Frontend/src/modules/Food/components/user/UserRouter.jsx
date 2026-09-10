@@ -100,6 +100,26 @@ export default function UserRouter() {
     <Suspense fallback={<Loader />}>
       <Routes>
         <Route path="splash" element={<Splash />} />
+
+        {/* Public Standalone Legal Policies & About (outside of UserLayout shell) */}
+        <Route path="profile/about" element={<About />} />
+        <Route path="about" element={<About />} />
+        <Route path="who-we-are" element={<About />} />
+        <Route path="profile/report-safety-emergency" element={<ReportSafetyEmergency />} />
+        <Route path="report-safety-emergency" element={<ReportSafetyEmergency />} />
+        <Route path="profile/terms" element={<Terms />} />
+        <Route path="terms" element={<Terms />} />
+        <Route path="profile/privacy" element={<Privacy />} />
+        <Route path="privacy" element={<Privacy />} />
+        <Route path="profile/refund" element={<Refund />} />
+        <Route path="refund" element={<Refund />} />
+        <Route path="profile/shipping" element={<Shipping />} />
+        <Route path="shipping" element={<Shipping />} />
+        <Route path="profile/cancellation" element={<Cancellation />} />
+        <Route path="cancellation" element={<Cancellation />} />
+        <Route path="help" element={<Help />} />
+        <Route path="blog" element={<Help />} />
+
         <Route element={<UserLayout />}>
           {/* Home & Discovery */}
           <Route path="" element={<Home />} />
@@ -250,23 +270,6 @@ export default function UserRouter() {
             }
           />
           <Route
-            path="profile/about"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <About />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="profile/report-safety-emergency"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <ReportSafetyEmergency />
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="profile/accessibility"
             element={
               <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
@@ -299,12 +302,6 @@ export default function UserRouter() {
             }
           />
 
-          {/* Public Legal Policies (stay public) */}
-          <Route path="profile/terms" element={<Terms />} />
-          <Route path="profile/privacy" element={<Privacy />} />
-          <Route path="profile/refund" element={<Refund />} />
-          <Route path="profile/shipping" element={<Shipping />} />
-          <Route path="profile/cancellation" element={<Cancellation />} />
 
           {/* Auth - User login is centralized at /user/auth/login */}
           <Route path="auth/login" element={<Navigate to="/user/auth/login" replace />} />
@@ -313,7 +310,6 @@ export default function UserRouter() {
           <Route path="auth/callback" element={<AuthCallback />} />
 
           {/* Help */}
-          <Route path="help" element={<Help />} />
           <Route path="help/orders/:orderId" element={<OrderHelp />} />
 
           {/* Notifications - Protected (user auth) */}

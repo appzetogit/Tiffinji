@@ -70,8 +70,11 @@ export const ProfileV2 = () => {
     }).catch(() => {})
   }, [])
 
+  const DELIVERY_APP_PLAYSTORE_URL = "https://play.google.com/store/apps/details?id=com.tiffinji.delivery&hl=en"
   const refId = profile?._id || profile?.id || profile?.referralCode || ""
-  const referralLink = refId ? `${window.location.origin}/food/delivery/signup?ref=${encodeURIComponent(String(refId))}` : ""
+  const referralLink = refId
+    ? `${DELIVERY_APP_PLAYSTORE_URL}&referrer=ref%3D${encodeURIComponent(String(refId))}`
+    : DELIVERY_APP_PLAYSTORE_URL
 
   const handleShareReferral = async () => {
     if (!referralLink) return
