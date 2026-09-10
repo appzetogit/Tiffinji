@@ -30,10 +30,75 @@ export const searchUnified = async (query = {}, options = {}) => {
     // 1. Initial Filter (approved status and basic conditions)
     const restaurantFilter = { status: 'approved' };
     
-    console.log(`[Search-Service] Querying with term: "${term}", categoryId: "${categoryId}", zoneId: "${zoneId}"`);
+    console.log(`[Search-Service] Querying with term: "${term}", categoryId: "${categoryId}", zoneId: "${zoneId}", lat: "${lat}", lng: "${lng}"`);
 
-    if (zoneId && mongoose.Types.ObjectId.isValid(zoneId)) {
-        restaurantFilter.zoneId = new mongoose.Types.ObjectId(zoneId);
+    let effectiveZoneId = String(zoneId || '').trim();
+
+    // Auto-detect zoneId from lat/lng if not explicitly passed
+    if (!effectiveZoneId && lat && lng) {
+        const nLat = Number(lat);
+        const nLng = Number(lng);
+        if (Number.isFinite(nLat) && Number.isFinite(nLng)) {
+            try {
+                const { FoodZone } = await import('../../admin/models/zone.model.js');
+                const zones = await FoodZone.find({ isActive: true }).lean();
+                for (const z of zones) {
+                    if (Array.isArray(z.coordinates) && z.coordinates.length >= 3) {
+                        const poly = z.coordinates.map(c => [Number(c.longitude), Number(c.latitude)]);
+                        if (poly[0][0] !== poly[poly.length - 1][0] || poly[0][1] !== poly[poly.length - 1][1]) {
+                            poly.push(poly[0]);
+                        }
+                        // Ray-casting algorithm for point-in-polygon check
+                        let inside = false;
+                        for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+                            const xi = poly[i][0], yi = poly[i][1];
+                            const xj = poly[j][0], yj = poly[j][1];
+                            const intersect = ((yi > nLat) !== (yj > nLat))
+                                && (nLng < (xj - xi) * (nLat - yi) / (yj - yi) + xi);
+                            if (intersect) inside = !inside;
+                        }
+                        if (inside) {
+                            effectiveZoneId = String(z._id);
+                            console.log(`[Search-Service] Auto-detected zoneId "${effectiveZoneId}" (${z.name}) from coordinates [${nLat}, ${nLng}]`);
+                            break;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('[Search-Service] Error auto-detecting zone from coords:', err);
+            }
+        }
+    }
+
+    if (effectiveZoneId && mongoose.Types.ObjectId.isValid(effectiveZoneId)) {
+        const zoneOr = [
+            { zoneId: new mongoose.Types.ObjectId(effectiveZoneId) },
+            { zoneId: String(effectiveZoneId) }
+        ];
+        try {
+            const { FoodZone } = await import('../../admin/models/zone.model.js');
+            const zoneDoc = await FoodZone.findOne({ _id: effectiveZoneId, isActive: true }).lean();
+            if (zoneDoc && Array.isArray(zoneDoc.coordinates) && zoneDoc.coordinates.length >= 3) {
+                const polygonCoords = zoneDoc.coordinates.map(c => [Number(c.longitude), Number(c.latitude)]);
+                if (polygonCoords[0][0] !== polygonCoords[polygonCoords.length - 1][0] ||
+                    polygonCoords[0][1] !== polygonCoords[polygonCoords.length - 1][1]) {
+                    polygonCoords.push(polygonCoords[0]);
+                }
+                zoneOr.push({
+                    location: {
+                        $geoWithin: {
+                            $geometry: {
+                                type: 'Polygon',
+                                coordinates: [polygonCoords]
+                            }
+                        }
+                    }
+                });
+            }
+        } catch (e) {
+            // Ignore polygon resolution failures
+        }
+        restaurantFilter.$and = [...(restaurantFilter.$and || []), { $or: zoneOr }];
     }
 
     if (isVeg === 'true') {
@@ -72,6 +137,23 @@ export const searchUnified = async (query = {}, options = {}) => {
         }
     }
 
+    // Pre-fetch eligible zone restaurant IDs to scope food searches strictly within the zone
+    const eligibleZoneRestaurants = await FoodRestaurant.find(restaurantFilter).select('_id').lean();
+    const eligibleZoneRestaurantIds = eligibleZoneRestaurants.map(r => r._id);
+
+    if (eligibleZoneRestaurantIds.length === 0) {
+        return {
+            success: true,
+            data: {
+                restaurants: [],
+                total: 0,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                zoneFiltered: !!(effectiveZoneId && mongoose.Types.ObjectId.isValid(effectiveZoneId))
+            }
+        };
+    }
+
     // 3. Search Matching
     if (regex) {
         // A. Search by Restaurant Name / Cuisine
@@ -88,8 +170,11 @@ export const searchUnified = async (query = {}, options = {}) => {
             restaurantDetailsMap.set(r._id.toString(), { ...r, matchType: 'restaurant' });
         });
 
-        // B. Search by Food Item Name
-        const foodFilters = { approvalStatus: 'approved' };
+        // B. Search by Food Item Name (strictly scoped to eligible zone restaurants)
+        const foodFilters = { 
+            approvalStatus: 'approved',
+            restaurantId: { $in: eligibleZoneRestaurantIds }
+        };
         if (isVeg === 'true') foodFilters.foodType = 'Veg';
         
         const matchedFoods = await FoodItem.find({
@@ -153,30 +238,16 @@ export const searchUnified = async (query = {}, options = {}) => {
         results.sort((a, b) => (a.distanceScore || 999) - (b.distanceScore || 999));
     }
 
-    // ... (rest of logic up to result formation)
-    const finalResult = {
+    return {
         success: true,
         data: {
             restaurants: results.slice(skip, skip + limit),
             total: results.length,
             page: parseInt(page),
             limit: parseInt(limit),
-            zoneFiltered: !!(zoneId && mongoose.Types.ObjectId.isValid(zoneId))
+            zoneFiltered: !!(effectiveZoneId && mongoose.Types.ObjectId.isValid(effectiveZoneId))
         }
     };
-
-    // FALLBACK: If results are empty and a zoneId was provided, try one more time without zoneId 
-    // to ensure user sees SOMETHING if their current zone has no matches.
-    if (results.length === 0 && zoneId && mongoose.Types.ObjectId.isValid(zoneId)) {
-        console.log(`[Search-Service] No results in zone ${zoneId}. Trying global fallback...`);
-        const fallbackResults = await searchUnified({ ...query, zoneId: null }, options);
-        if (fallbackResults.data.total > 0) {
-            fallbackResults.data.wasFallback = true;
-            return fallbackResults;
-        }
-    }
-
-    return finalResult;
 };
 
 /**

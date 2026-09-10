@@ -2218,7 +2218,7 @@ export default function Home() {
           {/* Decoupled Dark Background - Dynamic height based on actual components to prevent clipping sticky elements while covering properly */}
           <div
             className="absolute top-0 left-0 right-0 overflow-hidden bg-gradient-to-b from-[#3a142c] to-[#1a0a14] rounded-b-[2rem] shadow-lg pointer-events-none z-0 transition-all duration-300 [transform:translateZ(0)] [mask-image:-webkit-radial-gradient(white,black)]"
-            style={{ height: festVideoActive ? '360px' : (headerBgHeight > 0 ? `${headerBgHeight}px` : (activeTab === 'food' ? '300px' : '140px')) }}
+            style={{ height: festVideoActive ? '360px' : (headerBgHeight > 0 ? `${headerBgHeight}px` : '140px') }}
           >
             {festVideoActive && (
               <div className="absolute inset-0 z-0 overflow-hidden rounded-b-[2rem] bg-[#eaebeb] pointer-events-auto">
@@ -2277,27 +2277,21 @@ export default function Home() {
 
             {activeTab === "food" && (
               <div id="fest-banner-wrapper" className="w-full">
-                {festVideoActive ? (
+                {festVideoActive && (
                   <div className="w-full h-[235px] sm:h-[245px]" />
-                ) : (
-                  <div>
-                    <FestBanner
-                      isVegMode={vegMode}
-                      images={festBannerImages}
-                      hideFoodImages={true}
-                    />
-                  </div>
                 )}
+              </div>
+            )}
 
-                {/* Sticky Search Bar and Veg Toggle in Transparent Glossy Grey Region */}
-                <div
-                  id="home-header-search-row"
-                  className={`relative sticky z-[60] transition-all duration-300 pointer-events-auto bg-[#9ca3af]/45 dark:bg-[#1a202c]/55 backdrop-blur-xl border-b border-white/20 dark:border-white/10 ${
-                    isCategoryStuck
-                      ? "top-0 py-2.5 px-3 shadow-md rounded-none"
-                      : "top-0 -mt-2 pt-3 pb-4 px-3 rounded-b-[28px] shadow-md shadow-black/5"
-                  }`}
-                >
+            {/* Sticky Search Bar and Veg Toggle in Transparent Glossy Grey Region */}
+            <div
+              id="home-header-search-row"
+              className={`relative sticky z-[60] transition-all duration-300 pointer-events-auto bg-[#9ca3af]/45 dark:bg-[#1a202c]/55 backdrop-blur-xl border-b border-white/20 dark:border-white/10 ${
+                isCategoryStuck
+                  ? "top-0 py-2.5 px-3 shadow-md rounded-none"
+                  : "top-0 -mt-2 pt-3 pb-4 px-3 rounded-b-[28px] shadow-md shadow-black/5"
+              }`}
+            >
                   <div className="flex items-center gap-2.5 w-full max-w-lg mx-auto px-1">
                     {/* Search Bar (Glossy Glass Capsule Pill matching Screenshot) */}
                     <div
@@ -2347,8 +2341,6 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
 
             <AnimatePresence mode="wait">
               {activeTab === "food" ? (
@@ -3870,7 +3862,7 @@ export default function Home() {
         <StickyCartCard />
         {/* Live order strip: only on homepage (not in UserLayout) */}
         <OrderTrackingCard hasBottomNav />
-      </div> {/* Closes the unified relative z-10 w-full mb-2 container from top */}
+      </div>
     </div>
   );
 }

@@ -115,8 +115,13 @@ export default function ProfessionalSearch() {
       setResults({ restaurants: [], dishes: [] })
       return
     }
-    const cacheKey = `${searchTerm}-${catId}-${zoneId}`;
-    if (sessionSearchCache.has(cacheKey)) {
+
+    const effectiveZoneId = zoneId || localStorage.getItem("userZoneId") || null;
+    const effectiveLat = userCoords?.latitude || localStorage.getItem("userLat") || null;
+    const effectiveLng = userCoords?.longitude || localStorage.getItem("userLng") || null;
+
+    const cacheKey = `${searchTerm}-${catId}-${effectiveZoneId || 'nozone'}`;
+    if (effectiveZoneId && sessionSearchCache.has(cacheKey)) {
       setResults(sessionSearchCache.get(cacheKey));
       return; // instant load
     }
@@ -126,9 +131,9 @@ export default function ProfessionalSearch() {
       const res = await searchAPI.unifiedSearch({
         q: searchTerm,
         categoryId: catId,
-        lat: userCoords?.latitude,
-        lng: userCoords?.longitude,
-        zoneId
+        lat: effectiveLat,
+        lng: effectiveLng,
+        zoneId: effectiveZoneId
       })
       
       if (res.data?.success) {
@@ -138,7 +143,9 @@ export default function ProfessionalSearch() {
           restaurants: all.filter(r => r.matchType === 'restaurant' || !r.matchType),
           dishes: all.filter(r => r.matchType === 'food')
         };
-        sessionSearchCache.set(cacheKey, parsedResults);
+        if (effectiveZoneId) {
+          sessionSearchCache.set(cacheKey, parsedResults);
+        }
         setResults(parsedResults);
       }
     } catch (err) {
@@ -153,7 +160,7 @@ export default function ProfessionalSearch() {
     if (debouncedQuery) {
         setSearchParams({ q: debouncedQuery, ...(selectedCategoryId ? { cat: selectedCategoryId } : {}) }, { replace: true })
     }
-  }, [debouncedQuery, selectedCategoryId, performSearch, setSearchParams])
+  }, [debouncedQuery, selectedCategoryId, performSearch, setSearchParams, zoneId])
 
   // Auto-scroll to selected category on load or when category changes
   useEffect(() => {
