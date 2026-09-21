@@ -382,9 +382,9 @@ export default function ProfessionalSearch() {
                                    <span>{r.estimatedDeliveryTime || "30-40 mins"}</span>
                                 </div>
                              </div>
-                             {(r.matchedDishPrice || r.price) && (
-                                <span className="text-sm font-black text-gray-900 dark:text-white bg-gray-50 dark:bg-zinc-800 px-2 py-1 rounded-lg">₹{Number(r.matchedDishPrice || r.price).toFixed(2)}</span>
-                             )}
+                             {(r.matchedDishPrice !== undefined && r.matchedDishPrice !== null) || (r.price !== undefined && r.price !== null) ? (
+                                <span className="text-sm font-black text-gray-900 dark:text-white bg-gray-50 dark:bg-zinc-800 px-2 py-1 rounded-lg">₹{Number(r.matchedDishPrice ?? r.price).toFixed(2)}</span>
+                             ) : null}
                           </div>
                        </div>
                     </motion.button>
@@ -541,9 +541,11 @@ export default function ProfessionalSearch() {
                  <div className="p-4 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-between shrink-0">
                     <div className="flex flex-col">
                       <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">Price</span>
-                      <span className="text-2xl font-black text-gray-900 dark:text-white">
-                         {selectedDish.matchedDishPrice ? `₹${Number(selectedDish.matchedDishPrice).toFixed(2)}` : (selectedDish.price ? `₹${Number(selectedDish.price).toFixed(2)}` : '₹-')}
-                      </span>
+                       <span className="text-2xl font-black text-gray-900 dark:text-white">
+                          {(selectedDish.matchedDishPrice !== undefined && selectedDish.matchedDishPrice !== null) || (selectedDish.price !== undefined && selectedDish.price !== null)
+                            ? `₹${Number(selectedDish.matchedDishPrice ?? selectedDish.price).toFixed(2)}`
+                            : '₹-'}
+                       </span>
                     </div>
                     <Link 
                       to={`/user/restaurants/${selectedDish.slug || selectedDish.originalRestaurantId || selectedDish._id}${selectedDish.matchedDishId ? `?dish=${selectedDish.matchedDishId}` : ''}`} 

@@ -182,27 +182,34 @@ export const searchUnified = async (query = {}, options = {}) => {
             name: { $regex: regex }
         }).limit(limit * 2).lean();
 
-        const foodRestaurantIds = matchedFoods.map(f => f.restaurantId.toString());
+        const foodRestaurantIds = [...new Set(matchedFoods.map(f => f.restaurantId.toString()))];
         
         if (foodRestaurantIds.length > 0) {
-            const unmatchedIds = foodRestaurantIds.filter(id => !restaurantIds.has(id));
-            if (unmatchedIds.length > 0) {
-                const rsForFoods = await FoodRestaurant.find({
-                    ...restaurantFilter,
-                    _id: { $in: unmatchedIds.map(id => new mongoose.Types.ObjectId(id)) }
-                }).lean();
+            const rsForFoods = await FoodRestaurant.find({
+                ...restaurantFilter,
+                _id: { $in: foodRestaurantIds.map(id => new mongoose.Types.ObjectId(id)) }
+            }).lean();
 
-                rsForFoods.forEach(r => {
-                    restaurantIds.add(r._id.toString());
-                    restaurantDetailsMap.set(r._id.toString(), { 
-                        ...r, 
+            const restaurantMap = new Map(rsForFoods.map(r => [r._id.toString(), r]));
+
+            matchedFoods.forEach(food => {
+                const r = restaurantMap.get(food.restaurantId.toString());
+                if (r) {
+                    const foodKey = `food_${food._id}`;
+                    restaurantDetailsMap.set(foodKey, {
+                        ...r,
+                        _id: foodKey,
+                        originalRestaurantId: r._id,
                         matchType: 'food',
-                        matchedDish: matchedFoods.find(f => f.restaurantId.toString() === r._id.toString())?.name,
-                        matchedDishImage: matchedFoods.find(f => f.restaurantId.toString() === r._id.toString())?.image,
-                        matchedDishId: matchedFoods.find(f => f.restaurantId.toString() === r._id.toString())?._id
+                        matchedDish: food.name,
+                        matchedDishImage: food.image,
+                        matchedDishId: food._id,
+                        matchedDishPrice: food.price,
+                        matchedDishDescription: food.description,
+                        price: food.price
                     });
-                });
-            }
+                }
+            });
         }
     } else {
         // No search text -> List all restaurants matching filters (category/zone)

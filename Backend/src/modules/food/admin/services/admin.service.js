@@ -3082,8 +3082,8 @@ const resolveAdminFoodCategory = async ({ categoryId, categoryName, foodType, pu
     }
 
     if (categoryDoc?.foodTypeScope) {
-        if (pureVegRestaurant && String(categoryDoc.foodTypeScope || '') !== 'Veg') {
-            throw new ValidationError('Pure veg restaurants can only use veg categories');
+        if (pureVegRestaurant && String(categoryDoc.foodTypeScope || '') === 'Non-Veg') {
+            throw new ValidationError('Pure veg restaurants cannot use Non-Veg categories');
         }
         if (!categoryAllowsFoodType(categoryDoc.foodTypeScope, foodType)) {
             throw new ValidationError(`This ${categoryDoc.foodTypeScope} category cannot accept ${foodType} food`);
