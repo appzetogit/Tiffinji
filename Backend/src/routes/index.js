@@ -22,6 +22,8 @@ import searchRoutes from '../modules/food/search/routes/search.routes.js';
 import franchisePublicRoutes from '../modules/food/franchise/routes/franchise.public.routes.js';
 import * as appConfigController from '../modules/food/admin/controllers/appConfig.controller.js';
 
+import * as promocodeController from '../modules/food/restaurant/controllers/promocode.controller.js';
+
 const router = express.Router();
 
 router.get('/v1/health', (req, res) => {
@@ -35,6 +37,13 @@ router.use('/v1/food/auth', authRoutes);
 router.use('/v1/auth', authRoutes);
 router.use('/v1/food/delivery', deliveryRoutes);
 router.use('/v1/food/restaurant', restaurantRoutes);
+
+// Backward-compatible promocode endpoints
+router.get('/v1/food/promocodes', authMiddleware, promocodeController.getRestaurantPromocodes);
+router.post('/v1/food/promocodes', authMiddleware, promocodeController.createRestaurantPromocode);
+router.patch('/v1/food/promocodes/:id', authMiddleware, promocodeController.toggleRestaurantPromocodeStatus);
+router.delete('/v1/food/promocodes/:id', authMiddleware, promocodeController.deleteRestaurantPromocode);
+
 router.use('/v1/food', landingRoutes);
 router.use('/v1/food/search', searchRoutes);
 router.get('/v1/food/dining/categories/public', getPublicDiningCategories);
