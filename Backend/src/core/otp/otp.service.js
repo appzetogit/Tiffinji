@@ -6,7 +6,7 @@ import { logger } from '../../utils/logger.js';
 import { ValidationError } from '../auth/errors.js';
 
 const generateOtpCode = () => {
-    const code = crypto.randomInt(1000, 9999);
+    const code = crypto.randomInt(100000, 999999);
     return String(code);
 };
 
@@ -21,9 +21,9 @@ const sendSmsViaIndiaHub = async (phone, otp) => {
         const digits = String(phone || '').replace(/\D/g, '');
         const msisdn = digits.startsWith('91') ? digits : `91${digits}`;
 
-        // EXACT DLT TEMPLATE provided by user:
-        // "Welcome to the ##var## powered by SMSINDIAHUB. Your OTP for registration is ##var##"
-        const message = `Welcome to the Tiffinji powered by SMSINDIAHUB. Your OTP for registration is ${otp}`;
+        // EXACT DLT TEMPLATE approved for Appzeto:
+        // "Welcome to the ##var## powered by Appzeto.Your OTP for registration is ##var##.BGADEC"
+        const message = `Welcome to the Tiffinji powered by Appzeto.Your OTP for registration is ${otp}.BGADEC`;
 
         // SMS India Hub HTTP GET API — query param names are case-sensitive per SOP
         const url = new URL('http://cloud.smsindiahub.in/vendorsms/pushsms.aspx');
@@ -49,7 +49,12 @@ const sendSmsViaIndiaHub = async (phone, otp) => {
         let parsed = null;
         try { parsed = JSON.parse(resultText); } catch (_) { /* plain text response is OK */ }
 
-        if (parsed && parsed.ErrorCode && parsed.ErrorCode !== '000') {
+        if (resultText.startsWith('Failed#') || resultText.startsWith('Error#')) {
+            const errMsg = `SMS India Hub API Failure for ${phone}: ${resultText}`;
+            logger.error(errMsg);
+            // eslint-disable-next-line no-console
+            console.error(`❌ [SMS ERROR] ${errMsg}`);
+        } else if (parsed && parsed.ErrorCode && parsed.ErrorCode !== '000') {
             const errMsg = `SMS India Hub ERROR for ${phone}: [${parsed.ErrorCode}] ${parsed.ErrorMessage || resultText}`;
             logger.error(errMsg);
             // eslint-disable-next-line no-console
@@ -134,7 +139,7 @@ export const createOrUpdateOtp = async (phone) => {
 };
 
 export const verifyOtp = async (phone, otp) => {
-    const isDefaultOtp = config.useDefaultOtp || otp === '1234' || otp === '123456' || otp === '0000' || otp === '000000';
+    const isDefaultOtp = Boolean(config.useDefaultOtp);
 
     const record = await FoodOtp.findOne({ phone });
     if (!record) {
