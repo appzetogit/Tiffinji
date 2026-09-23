@@ -737,10 +737,10 @@ export const restaurantAPI = {
     restaurantClient.get("/food/restaurant/withdrawals"),
     
   // Promocodes
-  getPromocodes: () => restaurantClient.get("/food/promocodes"),
-  createPromocode: (data) => restaurantClient.post("/food/promocodes", data),
-  togglePromocodeStatus: (id, isActive) => restaurantClient.patch(`/food/promocodes/${id}`, { isActive }),
-  deletePromocode: (id) => restaurantClient.delete(`/food/promocodes/${id}`),
+  getPromocodes: () => restaurantClient.get("/food/restaurant/promocodes"),
+  createPromocode: (data) => restaurantClient.post("/food/restaurant/promocodes", data),
+  togglePromocodeStatus: (id, isActive) => restaurantClient.patch(`/food/restaurant/promocodes/${id}`, { isActive }),
+  deletePromocode: (id) => restaurantClient.delete(`/food/restaurant/promocodes/${id}`),
 
   /** Update restaurant profile fields (name/cuisines/location/menuImages). */
   updateProfile: (body) =>

@@ -58,6 +58,12 @@ import { authMiddleware } from '../../../../core/auth/auth.middleware.js';
 import { sendError } from '../../../../utils/response.js';
 import { getRestaurantFinanceController } from '../controllers/restaurantFinance.controller.js';
 import { deleteRestaurantAccountController } from '../controllers/deleteAccount.controller.js';
+import {
+    getRestaurantPromocodes,
+    createRestaurantPromocode,
+    toggleRestaurantPromocodeStatus,
+    deleteRestaurantPromocode
+} from '../controllers/promocode.controller.js';
 
 import { cacheResponse, invalidateCache } from '../../../../middleware/cache.js';
 
@@ -226,6 +232,12 @@ router.get('/download-menu-pdf/:id', authMiddleware, (req, res, next) => {
     // Call the download function
     downloadRestaurantMenuPdf(req, res, next);
 });
+
+// Promocodes (restaurant dashboard)
+router.get('/promocodes', authMiddleware, requireRestaurant, getRestaurantPromocodes);
+router.post('/promocodes', authMiddleware, requireRestaurant, createRestaurantPromocode);
+router.patch('/promocodes/:id', authMiddleware, requireRestaurant, toggleRestaurantPromocodeStatus);
+router.delete('/promocodes/:id', authMiddleware, requireRestaurant, deleteRestaurantPromocode);
 
 // Delete account (Bearer RESTAURANT)
 router.delete('/account', authMiddleware, requireRestaurant, deleteRestaurantAccountController);

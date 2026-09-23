@@ -116,14 +116,23 @@ export default function Promocodes() {
     <div className="restaurant-page min-h-full bg-gray-50 pb-20">
       {/* Header */}
       <div className="bg-primary px-4 py-4 sticky top-0 z-10 shadow-md">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-1.5 hover:bg-white/10 rounded-lg transition-colors shrink-0"
+            >
+              <ArrowLeft className="w-6 h-6 text-white" />
+            </button>
+            <h1 className="text-lg font-bold text-white truncate">Promo Codes</h1>
+          </div>
           <button
-            onClick={() => navigate(-1)}
-            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white font-bold px-3.5 py-1.5 rounded-full text-xs transition-colors shrink-0 shadow-sm border border-white/20 active:scale-95"
           >
-            <ArrowLeft className="w-6 h-6 text-white" />
+            <Plus className="w-4 h-4" />
+            <span>Create Code</span>
           </button>
-          <h1 className="text-lg font-bold text-white flex-1">Promo Codes</h1>
         </div>
       </div>
 
@@ -241,9 +250,10 @@ export default function Promocodes() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="restaurant-modal-sheet bg-white rounded-t-3xl z-50 max-h-[90vh] overflow-hidden flex flex-col"
+              className="fixed inset-0 w-full h-full bg-white z-[200] flex flex-col justify-between overflow-hidden"
             >
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white shrink-0">
                 <h2 className="text-xl font-bold text-gray-900">New Promo Code</h2>
                 <button
                   onClick={() => setIsModalOpen(false)}
@@ -253,7 +263,8 @@ export default function Promocodes() {
                 </button>
               </div>
 
-              <div className="overflow-y-auto px-6 py-6 pb-24">
+              {/* Form Body */}
+              <div className="flex-1 overflow-y-auto px-6 py-6 pb-6">
                 <form id="promoForm" onSubmit={handleSubmit} className="space-y-5">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Code <span className="text-red-500">*</span></label>
@@ -375,7 +386,8 @@ export default function Promocodes() {
                 </form>
               </div>
 
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.1)]">
+              {/* Footer Submit Button */}
+              <div className="p-4 bg-white border-t border-gray-100 shrink-0 z-30 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.1)]">
                 <button
                   type="submit"
                   form="promoForm"

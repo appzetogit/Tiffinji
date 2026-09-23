@@ -4,14 +4,14 @@ import { ValidationError } from '../../../../core/auth/errors.js';
 const orderItemSchema = z.object({
     itemId: z.string().min(1, 'Item id required'),
     name: z.string().min(1, 'Item name required'),
-    variantId: z.string().optional(),
-    variantName: z.string().optional(),
-    variantPrice: z.number().min(0).optional(),
-    price: z.number().min(0),
-    quantity: z.number().int().min(1),
-    isVeg: z.boolean().optional().default(true),
-    image: z.string().optional(),
-    notes: z.string().optional()
+    variantId: z.string().nullable().optional(),
+    variantName: z.string().nullable().optional(),
+    variantPrice: z.union([z.number(), z.string().transform(Number)]).nullable().optional(),
+    price: z.union([z.number(), z.string().transform(Number)]),
+    quantity: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().int().min(1)),
+    isVeg: z.boolean().nullable().optional().default(true),
+    image: z.string().nullable().optional(),
+    notes: z.string().nullable().optional()
 });
 
 const addressSchema = z.object({
@@ -47,20 +47,11 @@ export function validateCalculateOrderDto(body) {
     const schema = z.object({
         items: z.array(orderItemSchema).min(1, 'At least one item required'),
         restaurantId: z.string().min(1, 'Restaurant id required'),
-        deliveryAddress: z
-            .object({
-                location: z
-                    .object({
-                        type: z.literal('Point').optional(),
-                        coordinates: z.tuple([z.number(), z.number()]).optional()
-                    })
-                    .optional()
-            })
-            .optional(),
-        deliveryAddressId: z.string().optional(),
-        zoneId: z.string().optional(),
-        couponCode: z.string().optional(),
-        deliveryFleet: z.string().optional()
+        deliveryAddress: z.any().optional(),
+        deliveryAddressId: z.string().nullable().optional(),
+        zoneId: z.string().nullable().optional(),
+        couponCode: z.string().nullable().optional(),
+        deliveryFleet: z.string().nullable().optional()
     });
     const result = schema.safeParse(body);
     if (!result.success) {

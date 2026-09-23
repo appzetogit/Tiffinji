@@ -223,4 +223,16 @@ router.get('/live-monitor/status', adminController.getLiveMonitorStatus);
 import franchiseAdminRoutes from '../../franchise/routes/franchise.admin.routes.js';
 router.use('/franchise', franchiseAdminRoutes);
 
+// ----- App Intro & Ads -----
+router.get('/app-intro-ads', (req, res) => res.status(200).json({ success: true, data: [] }));
+router.post('/app-intro-ads', (req, res) => res.status(201).json({ success: true, message: 'Ad created' }));
+router.patch('/app-intro-ads/:id', (req, res) => res.status(200).json({ success: true, message: 'Ad updated' }));
+router.delete('/app-intro-ads/:id', (req, res) => res.status(200).json({ success: true, message: 'Ad deleted' }));
+
+// ----- Sub Admins -----
+router.get('/sub-admins', (req, res) => res.status(200).json({ success: true, data: { subAdmins: [] } }));
+router.post('/sub-admins', (req, res) => res.status(201).json({ success: true, message: 'Sub-admin created' }));
+router.put('/sub-admins/:id', (req, res) => res.status(200).json({ success: true, message: 'Sub-admin updated' }));
+router.delete('/sub-admins/:id', (req, res) => res.status(200).json({ success: true, message: 'Sub-admin deleted' }));
+
 export default router;

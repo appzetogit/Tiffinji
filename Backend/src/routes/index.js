@@ -41,6 +41,7 @@ router.get('/v1/food/dining/categories/public', getPublicDiningCategories);
 router.get('/v1/food/admin/fee-settings/public', adminController.getFeeSettings);
 router.get('/v1/food/dining/restaurants/public', getPublicDiningRestaurants);
 router.get('/v1/food/dining/restaurants/:restaurantId/occupied-seats/public', getPublicRestaurantOccupiedSeats);
+router.get('/v1/food/app-intro-ads/public', (req, res) => res.status(200).json({ success: true, data: [] }));
 
 // Dining Booking Routes
 router.post('/v1/food/dining/bookings', authMiddleware, requireRoles('USER'), createBooking);
