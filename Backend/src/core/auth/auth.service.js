@@ -117,7 +117,14 @@ export const verifyUserOtpAndLogin = async (
 
   const result = await verifyOtp(phone, otp);
 
-  if (!result.valid) {
+  // If OTP record was already verified and deleted during step 1, but user is verified and completing profile (name provided):
+  const isCompletingProfile =
+    existingUser &&
+    existingUser.isVerified &&
+    (!existingUser.name || String(existingUser.name).trim() === "" || String(existingUser.name).toLowerCase() === "null") &&
+    Boolean(trimmedName);
+
+  if (!result.valid && !isCompletingProfile) {
     throw new AuthError(result.reason || "OTP verification failed");
   }
 
