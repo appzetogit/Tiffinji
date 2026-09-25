@@ -1096,8 +1096,9 @@ export function useLocationEngine() {
               return
             }
 
-            // POSITION_UNAVAILABLE (code 2) usually means device GPS / location services are off
-            if (
+            if (err.code === 1) {
+              toast.error("Location permission blocked. Click icon next to site URL to allow.", { id: "geo-perm" })
+            } else if (
               err.code === 2 ||
               /unavailable|disabled|turn on|enable.*(gps|location)/i.test(err.message || "")
             ) {

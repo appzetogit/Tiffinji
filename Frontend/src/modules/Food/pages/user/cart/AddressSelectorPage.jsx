@@ -240,6 +240,8 @@ export default function AddressSelectorPage() {
         setTimeout(() => {
           handleBack()
         }, 200)
+      } else {
+        toast.error("Location permission blocked by browser. Please click the tune icon next to the URL to allow location.", { id: "geo" })
       }
     } catch (e) {
       toast.error("Failed to get location", { id: "geo" })
