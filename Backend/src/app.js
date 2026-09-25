@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import mongoSanitize from 'mongo-sanitize';
 import xssClean from 'xss-clean';
+import path from 'path';
 import routes from './routes/index.js';
 import errorHandler from './middleware/errorHandler.js';
 import { apiRateLimiter } from './middleware/rateLimit.js';
@@ -13,6 +14,9 @@ import { healthCheck } from './config/health.js';
 import { config } from './config/env.js';
 
 const app = express();
+
+// Serve local uploads folder statically
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Trust first proxy (essential for express-rate-limit if behind a proxy)
 app.set('trust proxy', 1);

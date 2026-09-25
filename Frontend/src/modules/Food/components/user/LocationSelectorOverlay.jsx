@@ -8,6 +8,7 @@ import { Textarea } from "@food/components/ui/textarea"
 import { useLocation as useGeoLocation } from "@food/hooks/useLocation"
 import { useAppLocation } from "@food/hooks/useAppLocation"
 import { useProfile } from "@food/context/ProfileContext"
+import { sanitizeLocationCoords } from "@food/utils/locationPersistence"
 import { toast } from "sonner"
 import { locationAPI, userAPI } from "@food/api"
 import { Loader } from '@googlemaps/js-api-loader'
@@ -1708,6 +1709,20 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
             zipCode: postalCode || prev.zipCode,
             additionalDetails: fullAddressForField || prev.additionalDetails,
           }))
+
+          if (Number.isFinite(roundedLat) && Number.isFinite(roundedLng)) {
+            const moveLocData = {
+              latitude: roundedLat,
+              longitude: roundedLng,
+              city: city || "",
+              state: state || "",
+              street: street || "",
+              area: area || street || "",
+              address: formattedAddress || coordLabel,
+              formattedAddress: formattedAddress || coordLabel
+            }
+            await setSavedLocation(moveLocData, { mode: 'saved', persistDb: false })
+          }
         } else {
           setCurrentAddress(coordLabel)
         }
@@ -1972,7 +1987,7 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
         return
       }
 
-      addressToSave = {
+      const rawAddressToSave = {
         label: normalizedLabel,
         street: trimmedStreet,
         additionalDetails: (addressFormData.additionalDetails || "").trim(),
@@ -1982,6 +1997,7 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
         latitude: mapPosition[0], // latitude from mapPosition[0]
         longitude: mapPosition[1], // longitude from mapPosition[1]
       }
+      addressToSave = sanitizeLocationCoords(rawAddressToSave)
 
       // Check if an address with the same label already exists
       const existingAddressWithSameLabel = addresses.find(addr => addr.label === normalizedLabel)
@@ -2069,11 +2085,13 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
     try {
       // Get coordinates from address location
       const coordinates = address.location?.coordinates || []
-      const longitude = coordinates[0]
-      const latitude = coordinates[1]
+      let longitude = coordinates[0] || address.longitude || address.lng || address.lon
+      let latitude = coordinates[1] || address.latitude || address.lat
 
-      if (latitude && longitude) {
-        const locationData = {
+      if (Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude))) {
+        latitude = Number(latitude)
+        longitude = Number(longitude)
+        const locationData = sanitizeLocationCoords({
           label: address.label || "Home",
           city: address.city,
           state: address.state,
@@ -2083,7 +2101,9 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
           latitude,
           longitude,
           formattedAddress: `${address.street}, ${address.city}, ${address.state}`
-        }
+        })
+        latitude = locationData.latitude
+        longitude = locationData.longitude
         await setSavedLocation(locationData, { mode: 'saved', persistDb: true })
       }
 
@@ -2300,6 +2320,22 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
 
                           // Move map + marker, then run reverse-geocode handler for consistency
                           setMapPosition([latitude, longitude])
+
+                          if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+                            const locationData = {
+                              label: "Selected Location",
+                              city: city || "",
+                              state: state || "",
+                              street: street || "",
+                              zipCode: zipCode || "",
+                              latitude,
+                              longitude,
+                              address: p.display || "",
+                              formattedAddress: p.display || ""
+                            }
+                            await setSavedLocation(locationData, { mode: 'saved', persistDb: false })
+                          }
+
                           if (googleMapRef.current && window.google && window.google.maps) {
                             try {
                               googleMapRef.current.panTo({ lat: latitude, lng: longitude })

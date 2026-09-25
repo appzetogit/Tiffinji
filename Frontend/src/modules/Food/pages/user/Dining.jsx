@@ -186,6 +186,9 @@ export default function Dining() {
         const city = cityRaw && cityRaw.toLowerCase() !== "current location" ? cityRaw : ""
 
         const restaurantParams = {}
+        if (zoneId) {
+          restaurantParams.zoneId = zoneId
+        }
         if (Number.isFinite(lat) && Number.isFinite(lng)) {
           restaurantParams.lat = lat
           restaurantParams.lng = lng

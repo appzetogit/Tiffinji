@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocationEngine } from '@food/hooks/useLocation';
 import { useZone } from '@food/hooks/useZone';
 import { userAPI } from '@food/api';
@@ -7,6 +7,7 @@ import {
   persistUserLocation,
   readDeliveryAddressMode,
   readStoredUserLocation,
+  sanitizeLocationCoords,
   notifyLocationUpdated,
   notifyDeliveryModeUpdated,
 } from '@food/utils/locationPersistence';
@@ -27,14 +28,19 @@ export function LocationProvider({ children }) {
   const [savedLocationOverride, setSavedLocationOverride] = useState(null);
 
   const location = useMemo(() => {
+    let loc = engineLocation;
     if (deliveryAddressMode === 'saved' && savedLocationOverride) {
-      return savedLocationOverride;
-    }
-    if (deliveryAddressMode === 'saved') {
+      loc = savedLocationOverride;
+    } else if (deliveryAddressMode === 'saved') {
       const stored = readStoredUserLocation();
-      if (stored) return stored;
+      if (stored) loc = stored;
+    } else if (engineLocation) {
+      loc = engineLocation;
+    } else {
+      const stored = readStoredUserLocation();
+      if (stored) loc = stored;
     }
-    return engineLocation;
+    return sanitizeLocationCoords(loc);
   }, [deliveryAddressMode, savedLocationOverride, engineLocation]);
 
   const {
@@ -66,8 +72,11 @@ export function LocationProvider({ children }) {
   }, []);
 
   const effectiveLocation = useMemo(() => {
-    if (deliveryAddressMode === 'current') return engineLocation || location;
-    return location;
+    let eff = location;
+    if (deliveryAddressMode === 'current') {
+      eff = engineLocation || location;
+    }
+    return sanitizeLocationCoords(eff);
   }, [deliveryAddressMode, engineLocation, location]);
 
   const setDeliveryAddressMode = useCallback((mode) => {

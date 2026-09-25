@@ -1063,7 +1063,7 @@ export default function Home() {
 
   const shouldShowOutOfZoneHome =
     !effectiveZoneLoading &&
-    isEffectiveLocationOutOfService;
+    (isEffectiveLocationOutOfService || !effectiveZoneId);
 
   // Mock points value - replace with actual points from context/store
   const userPoints = 99;
@@ -1185,7 +1185,11 @@ export default function Home() {
       const isDefaultFetch = Object.keys(filters).length === 0 ||
         (!filters.sortBy && !filters.selectedCuisine && (!filters.activeFilters || filters.activeFilters.size === 0));
 
-      if (isDefaultFetch && effectiveZoneLoading) {
+      if (isDefaultFetch && (effectiveZoneLoading || isEffectiveLocationOutOfService || !effectiveZoneId)) {
+        if (isEffectiveLocationOutOfService || !effectiveZoneId) {
+          setRestaurantsData([]);
+          setLoadingRestaurants(false);
+        }
         return;
       }
 
@@ -1279,10 +1283,9 @@ export default function Home() {
         params.page = pageToLoad;
         params.limit = 15;
 
-        const normalizedUserCity = String(effectiveLocation?.city || "")
-          .trim()
-          .toLowerCase();
-        // Removed city filtering to allow zoneId & polygon to accurately fetch all zone restaurants.
+        if (effectiveLocation?.city) {
+          params.city = effectiveLocation.city;
+        }
 
         debugLog("Fetching restaurants with params:", params);
         const response = await restaurantAPI.getRestaurants(params);

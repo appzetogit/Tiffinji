@@ -91,6 +91,19 @@ function UserLayoutShell() {
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    try {
+      const params = new URLSearchParams(location.search || "")
+      let ref = params.get("ref") || params.get("referrer") || ""
+      if (ref) {
+        const decoded = decodeURIComponent(ref)
+        const match = decoded.match(/ref(?:%3D|=)([^&]+)/i)
+        if (match && match[1]) ref = match[1].trim()
+        else if (decoded.includes("=")) ref = decoded.split("=").pop().trim()
+        if (ref) {
+          localStorage.setItem("food_referral_code", ref)
+        }
+      }
+    } catch { }
   }, [location.pathname, location.search, location.hash])
 
   const path = location.pathname.startsWith("/food")

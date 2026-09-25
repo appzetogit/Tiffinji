@@ -82,7 +82,22 @@ export default function SignIn() {
       const fullPhone = `${countryCode} ${phoneDigits}`
       await authAPI.sendOTP(fullPhone, "login", null)
 
-      const ref = String(searchParams.get("ref") || "").trim()
+      let ref = String(searchParams.get("ref") || searchParams.get("referrer") || "").trim()
+      if (ref) {
+        try {
+          const decoded = decodeURIComponent(ref)
+          const match = decoded.match(/ref(?:%3D|=)([^&]+)/i)
+          if (match && match[1]) ref = match[1].trim()
+          else if (decoded.includes("=")) ref = decoded.split("=").pop().trim()
+        } catch { }
+      }
+      if (!ref) {
+        ref = localStorage.getItem("food_referral_code") || ""
+      }
+      if (ref) {
+        localStorage.setItem("food_referral_code", ref)
+      }
+
       const authData = {
         method: "phone",
         phone: fullPhone,

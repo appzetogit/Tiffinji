@@ -1345,7 +1345,7 @@ export const listApprovedRestaurants = async (query = {}) => {
 
     // Use $geoNear only when geo is explicitly needed (radius filter or nearest sorting).
     // This avoids accidentally hiding restaurants that do not have coordinates yet.
-    const wantsGeo = (radiusKm !== null) || sortBy === 'nearest';
+    const wantsGeo = (radiusKm !== null) || sortBy === 'nearest' || (lat !== null && lng !== null);
     if (lat !== null && lng !== null && wantsGeo) {
         const geoNear = {
             $geoNear: {
@@ -1355,9 +1355,9 @@ export const listApprovedRestaurants = async (query = {}) => {
                 query: filter
             }
         };
-        if (radiusKm !== null) {
-            geoNear.$geoNear.maxDistance = Math.max(0.1, radiusKm) * 1000;
-        }
+        // Enforce 50km max delivery radius cutoff when user coordinates are provided to exclude distant cities
+        const maxDistKm = radiusKm !== null ? Math.max(0.1, radiusKm) : 50;
+        geoNear.$geoNear.maxDistance = maxDistKm * 1000;
 
         const sortStage = (() => {
             if (sortBy === 'rating' || sortBy === 'rating-high') return { $sort: { rating: -1, distanceMeters: 1 } };

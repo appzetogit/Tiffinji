@@ -84,7 +84,8 @@ export const getPublicExploreIconsController = async (req, res, next) => {
 
 export const getPublicGourmetController = async (req, res, next) => {
     try {
-        const docs = await getPublicGourmetRestaurants();
+        const { zoneId } = req.query;
+        const docs = await getPublicGourmetRestaurants(zoneId);
         const restaurants = (docs || []).map((d) => ({
             ...(d.restaurant || {}),
             _id: d.restaurant?._id || d.restaurantId,

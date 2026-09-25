@@ -6,7 +6,7 @@ import { Card, CardContent } from "@food/components/ui/card"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import { useLocationSelector } from "@food/components/user/UserLayout"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
-import { useLocation as useLocationHook } from "@food/hooks/useLocation"
+import { useAppLocation } from "@food/hooks/useAppLocation"
 import { useProfile } from "@food/context/ProfileContext"
 import { FaLocationDot } from "react-icons/fa6"
 import { diningAPI } from "@food/api"
@@ -53,7 +53,7 @@ export default function DiningCategory() {
   const navigate = useNavigate()
   const goBack = useAppBackNavigation()
   const { openLocationSelector } = useLocationSelector()
-  const { location } = useLocationHook()
+  const { location, zoneId } = useAppLocation()
   const { addFavorite, removeFavorite, isFavorite } = useProfile()
 
   const [restaurants, setRestaurants] = useState([])
@@ -64,11 +64,16 @@ export default function DiningCategory() {
     const fetchRestaurants = async () => {
       try {
         setIsLoading(true)
-        const response = await diningAPI.getRestaurants(
-          category
-            ? (location?.city ? { category, city: location.city } : { category })
-            : (location?.city ? { city: location.city } : {})
-        )
+        const params = {}
+        if (category) params.category = category
+        if (zoneId) params.zoneId = zoneId
+        if (location?.latitude && location?.longitude) {
+          params.lat = location.latitude
+          params.lng = location.longitude
+        } else if (location?.city) {
+          params.city = location.city
+        }
+        const response = await diningAPI.getRestaurants(params)
 
         if (response?.data?.success) {
           const mapped = (Array.isArray(response.data.data) ? response.data.data : []).map((restaurant) => {

@@ -187,26 +187,32 @@ export const verifyUserOtpAndLogin = async (
   console.log("[DEBUG REFERRAL] isNewUser:", isNewUser, "refRaw:", refRaw);
   if (isNewUser && refRaw) {
     try {
+      let referrer = null;
       if (mongoose.Types.ObjectId.isValid(refRaw)) {
-        const referrerId = new mongoose.Types.ObjectId(refRaw);
-        console.log("[DEBUG REFERRAL] referrerId:", referrerId, "refereeId:", userDoc._id);
-        if (String(referrerId) !== String(userDoc._id)) {
-          // Guard against double-crediting: if user already has a referredBy set
-          // or a referral log already exists, skip silently (e.g., name step re-verify).
-          const alreadyCredited = userDoc.referredBy
-            ? true
-            : await FoodReferralLog.exists({ refereeId: userDoc._id, role: "USER" });
-          if (alreadyCredited) {
-            console.log("[DEBUG REFERRAL] Already credited – skipping duplicate referral.");
-          } else {
-            const [referrer, settingsDoc] = await Promise.all([
-              FoodUser.findById(referrerId).select("_id referralCount").lean(),
-              FoodReferralSettings.findOne({ isActive: true })
-                .sort({ createdAt: -1 })
-                .lean(),
-            ]);
+        referrer = await FoodUser.findById(refRaw).select("_id referralCount").lean();
+      }
+      if (!referrer) {
+        referrer = await FoodUser.findOne({ referralCode: refRaw }).select("_id referralCount").lean();
+      }
 
-            console.log("[DEBUG REFERRAL] referrer:", referrer, "settingsDoc:", settingsDoc);
+      console.log("[DEBUG REFERRAL] referrer found:", referrer, "refereeId:", userDoc._id);
+
+      if (referrer && String(referrer._id) !== String(userDoc._id)) {
+        const referrerId = referrer._id;
+        // Guard against double-crediting: if user already has a referredBy set
+        // or a referral log already exists, skip silently (e.g., name step re-verify).
+        const alreadyCredited = userDoc.referredBy
+          ? true
+          : await FoodReferralLog.exists({ refereeId: userDoc._id, role: "USER" });
+
+        if (alreadyCredited) {
+          console.log("[DEBUG REFERRAL] Already credited – skipping duplicate referral.");
+        } else {
+          const settingsDoc = await FoodReferralSettings.findOne({ isActive: true })
+            .sort({ createdAt: -1 })
+            .lean();
+
+          console.log("[DEBUG REFERRAL] settingsDoc:", settingsDoc);
 
             if (referrer && settingsDoc) {
               const referrerReward = Math.max(0, Number(settingsDoc.user?.referrerReward) || 0);
@@ -272,7 +278,6 @@ export const verifyUserOtpAndLogin = async (
             }
           }
         }
-      }
     } catch (e) {
       // Never fail login due to referral errors.
       console.error("Referral error caught:", e);

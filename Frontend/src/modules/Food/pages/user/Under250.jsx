@@ -459,13 +459,44 @@ export default function Under250() {
     if (activeCategory) {
       const selectedCat = categories.find(cat => cat.id === activeCategory)
       if (selectedCat) {
-        const catNameLower = selectedCat.name.toLowerCase()
+        const catNameRaw = String(selectedCat.name || "").trim()
+        const catNameLower = catNameRaw.toLowerCase()
+        const catSlug = (selectedCat.slug || '').toLowerCase()
+        
+        // Detect Veg / Non-Veg categories
+        const isNonVegCategory = catNameLower.includes('non-veg') || catNameLower.includes('nonveg') || catNameLower.includes('non veg')
+        const isVegCategory = !isNonVegCategory && (catNameLower.includes('veg') || catNameLower.includes('vegetarian'))
+
         filtered = filtered.map(restaurant => {
-          const matches = restaurant.menuItems.filter(item => 
-            (item.category || "").toLowerCase() === catNameLower ||
-            (item.sectionName || "").toLowerCase() === catNameLower ||
-            (item.subsectionName || "").toLowerCase() === catNameLower
-          )
+          const matches = restaurant.menuItems.filter(item => {
+            const itemCat = String(item.categoryName || item.category || "").toLowerCase()
+            const itemSec = String(item.sectionName || "").toLowerCase()
+            const itemSub = String(item.subsectionName || "").toLowerCase()
+            const itemCatId = String(item.categoryId || item.category?._id || item.category?.id || "")
+            const foodType = String(item.foodType || item.vegNonVeg || "").toLowerCase()
+            const isItemVeg = item.isVeg === true || (foodType.includes("veg") && !foodType.includes("non"))
+            const isItemNonVeg = !isItemVeg || foodType.includes("non")
+
+            if (isNonVegCategory) {
+              return isItemNonVeg || itemCat.includes('non') || itemSec.includes('non')
+            }
+
+            if (isVegCategory) {
+              return isItemVeg || (itemCat.includes('veg') && !itemCat.includes('non')) || (itemSec.includes('veg') && !itemSec.includes('non'))
+            }
+
+            // Standard category matching (by name, section, categoryId, or slug)
+            return (
+              itemCat === catNameLower ||
+              itemSec === catNameLower ||
+              itemSub === catNameLower ||
+              itemCat.includes(catNameLower) ||
+              itemSec.includes(catNameLower) ||
+              itemSub.includes(catNameLower) ||
+              (itemCatId && itemCatId === String(selectedCat.id)) ||
+              (catSlug && (itemCat.includes(catSlug) || itemSec.includes(catSlug)))
+            )
+          })
           if (matches.length > 0) {
             return { ...restaurant, menuItems: matches }
           }
@@ -750,13 +781,16 @@ export default function Under250() {
               const menuItems = flattenMenuItems(menu)
                 .filter((item) => Number(item?.price || 0) <= under250PriceLimit && item?.isAvailable !== false)
                 .map((item) => {
-                  const foodType = String(item?.foodType || "").toLowerCase()
-                  const isVeg = foodType.includes("veg") && !foodType.includes("non")
+                  const rawFoodType = String(item?.foodType || item?.vegNonVeg || "").toLowerCase()
+                  const isVeg = item?.isVeg === true || (rawFoodType.includes("veg") && !rawFoodType.includes("non"))
                   return {
                     ...item,
                     id: String(item?.id || item?._id || `${restaurantId}-${item?.name || "dish"}`),
                     price: Number(item?.price || 0),
                     isVeg,
+                    foodType: item?.foodType || item?.vegNonVeg || (isVeg ? "Veg" : "Non-Veg"),
+                    categoryName: item?.categoryName || item?.category?.name || item?.category || item?.sectionName || "",
+                    categoryId: String(item?.categoryId || item?.category?._id || item?.category?.id || ""),
                     image:
                       item?.image ||
                       restaurant?.profileImage?.url ||

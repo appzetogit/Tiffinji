@@ -178,7 +178,7 @@ export default function OTP() {
       const email = authData?.method === "email" ? authData.email : null
       const purpose = authData?.isSignUp ? "register" : "login"
       const providedName = authData?.isSignUp ? authData?.name || null : null
-      const referralCode = authData?.referralCode || null
+      const referralCode = authData?.referralCode || localStorage.getItem("food_referral_code") || null
 
       // Try to get FCM token before verifying OTP
       let fcmToken = null;
