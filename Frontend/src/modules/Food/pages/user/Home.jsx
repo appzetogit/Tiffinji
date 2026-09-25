@@ -1062,8 +1062,7 @@ export default function Home() {
   }, [effectiveZoneId, effectiveZoneLoading]);
 
   const shouldShowOutOfZoneHome =
-    !effectiveZoneLoading &&
-    (isEffectiveLocationOutOfService || !effectiveZoneId);
+    !effectiveZoneLoading && Boolean(isEffectiveLocationOutOfService);
 
   // Mock points value - replace with actual points from context/store
   const userPoints = 99;
