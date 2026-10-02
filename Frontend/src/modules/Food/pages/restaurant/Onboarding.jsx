@@ -1438,20 +1438,18 @@ export default function RestaurantOnboarding() {
       }
     }
 
-    if (!step3.fssaiNumber?.trim()) {
-      errors.push("FSSAI number is required")
-    } else if (!FSSAI_NUMBER_REGEX.test(step3.fssaiNumber.trim())) {
-      errors.push("FSSAI number must contain exactly 14 digits")
+    if (step3.fssaiNumber?.trim()) {
+      if (!FSSAI_NUMBER_REGEX.test(step3.fssaiNumber.trim())) {
+        errors.push("FSSAI number must contain exactly 14 digits")
+      }
     }
-    if (!step3.fssaiExpiry?.trim()) {
-      errors.push("FSSAI expiry date is required")
-    } else if (step3.fssaiExpiry < getTodayLocalYMD()) {
-      errors.push("FSSAI expiry date cannot be in the past")
+    if (step3.fssaiExpiry?.trim()) {
+      if (step3.fssaiExpiry < getTodayLocalYMD()) {
+        errors.push("FSSAI expiry date cannot be in the past")
+      }
     }
-    // Validate FSSAI image - must be a File or existing URL
-    if (!step3.fssaiImage) {
-      errors.push("FSSAI image is required")
-    } else {
+    // Validate FSSAI image if provided
+    if (step3.fssaiImage) {
       const isValidFssaiImage =
         isUploadableFile(step3.fssaiImage) ||
         (step3.fssaiImage?.url && typeof step3.fssaiImage.url === 'string') ||
@@ -1686,10 +1684,9 @@ export default function RestaurantOnboarding() {
 
         formData.append("fssaiNumber", step3.fssaiNumber || "")
         formData.append("fssaiExpiry", step3.fssaiExpiry || "")
-        if (!isUploadableFile(step3.fssaiImage)) {
-          throw new Error("FSSAI image is required")
+        if (isUploadableFile(step3.fssaiImage)) {
+          formData.append("fssaiImage", step3.fssaiImage)
         }
-        formData.append("fssaiImage", step3.fssaiImage)
 
         formData.append("accountNumber", step3.accountNumber || "")
         formData.append("ifscCode", (step3.ifscCode || "").toUpperCase())
@@ -2626,7 +2623,9 @@ export default function RestaurantOnboarding() {
       </section>
 
       <section className="bg-white p-4 sm:p-6 rounded-md space-y-4">
-        <h2 className="text-lg font-semibold text-black">FSSAI details</h2>
+        <h2 className="text-lg font-semibold text-black">
+          FSSAI details <span className="text-xs font-normal text-gray-500">(Optional)</span>
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             value={step3.fssaiNumber || ""}
