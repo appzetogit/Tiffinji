@@ -214,7 +214,7 @@ function RestaurantDetailsContent() {
   // Fetch restaurant data from API
   useEffect(() => {
     const fetchRestaurant = async () => {
-      if (!slug || slug === '-' || slug === 'undefined' || slug === 'null') {
+      if (!slug || slug === 'undefined' || slug === 'null') {
         setLoadingRestaurant(false)
         setLoadingMenuItems(false)
         navigate('/food/user', { replace: true })
@@ -317,6 +317,10 @@ function RestaurantDetailsContent() {
         }
 
         if (apiRestaurant) {
+          if (slug === '-' && (apiRestaurant.slug || apiRestaurant._id)) {
+            const targetSlug = (apiRestaurant.slug && apiRestaurant.slug !== '-') ? apiRestaurant.slug : apiRestaurant._id;
+            navigate(`/user/restaurants/${targetSlug}`, { replace: true });
+          }
           debugLog('? Fetched restaurant from API:', apiRestaurant)
           debugLog('? Restaurant data keys:', Object.keys(apiRestaurant))
           debugLog('? Restaurant name field:', apiRestaurant?.name)
@@ -1034,6 +1038,10 @@ function RestaurantDetailsContent() {
           debugError('? No restaurant data found in API response')
           debugError('? Response:', response)
           debugError('? apiRestaurant:', apiRestaurant)
+          if (slug === '-' || slug === 'undefined' || slug === 'null') {
+            navigate('/food/user', { replace: true })
+            return
+          }
           if (!fetchedRestaurantRef.current) {
             setRestaurantError('Restaurant not found')
             setRestaurant(null)

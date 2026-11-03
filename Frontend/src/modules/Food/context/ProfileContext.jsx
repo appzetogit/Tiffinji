@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react"
 import { authAPI, userAPI } from "@food/api"
-import { persistUserLocation, notifyLocationUpdated, notifyDeliveryModeUpdated } from "@food/utils/locationPersistence"
+import { persistUserLocation, notifyLocationUpdated, notifyDeliveryModeUpdated, sanitizeLocationCoords } from "@food/utils/locationPersistence"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -318,16 +318,28 @@ export function ProfileProvider({ children }) {
           Array.isArray(coordinates) && coordinates.length >= 2
             ? Number(coordinates[1])
             : null
-        const lat = Number(
+        let lat = Number(
           Number.isFinite(latFromCoords)
             ? latFromCoords
             : selectedToSync?.latitude ?? selectedToSync?.lat,
         )
-        const lng = Number(
+        let lng = Number(
           Number.isFinite(lngFromCoords)
             ? lngFromCoords
             : selectedToSync?.longitude ?? selectedToSync?.lng,
         )
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          const sanitized = sanitizeLocationCoords({
+            city: selectedToSync?.city,
+            state: selectedToSync?.state,
+            address: selectedToSync?.additionalDetails || selectedToSync?.street,
+          })
+          if (sanitized && Number.isFinite(sanitized.latitude) && Number.isFinite(sanitized.longitude)) {
+            lat = sanitized.latitude
+            lng = sanitized.longitude
+          }
+        }
 
         if (Number.isFinite(lat) && Number.isFinite(lng)) {
           let existingLocation = {}

@@ -1561,9 +1561,25 @@ export const listApprovedRestaurants = async (query = {}) => {
     return { restaurants, total, page, limit };
 };
 
-export const getApprovedRestaurantByIdOrSlug = async (idOrSlug) => {
+export const getApprovedRestaurantByIdOrSlug = async (idOrSlug, query = {}) => {
     const value = String(idOrSlug || '').trim();
     if (!value) return null;
+
+    // Resilient fallback: if request arrived with hyphen or placeholder slug ('-', 'undefined', 'null'),
+    // recover the restaurant from the user coordinates or zone provided in the query.
+    if (value === '-' || value === 'undefined' || value === 'null') {
+        const lat = toFiniteNumber(query?.lat);
+        const lng = toFiniteNumber(query?.lng);
+        const zoneId = query?.zoneId;
+        if (lat !== null && lng !== null) {
+            const listRes = await listApprovedRestaurants({ lat, lng, zoneId, limit: 1 });
+            if (listRes?.restaurants?.length > 0) {
+                const targetId = listRes.restaurants[0]._id || listRes.restaurants[0].id;
+                return getApprovedRestaurantByIdOrSlug(targetId);
+            }
+        }
+        return null;
+    }
 
     let doc = null;
     // ObjectId path

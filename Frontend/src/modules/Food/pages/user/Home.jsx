@@ -747,6 +747,17 @@ export default function Home() {
       return { latitude: lat, longitude: lng };
     }
 
+    if (defaultSavedAddress) {
+      const sanitized = sanitizeLocationCoords({
+        city: defaultSavedAddress.city,
+        state: defaultSavedAddress.state,
+        address: defaultSavedAddress.street || defaultSavedAddress.address || defaultSavedAddress.additionalDetails,
+      });
+      if (sanitized && Number.isFinite(sanitized.latitude) && Number.isFinite(sanitized.longitude)) {
+        return { latitude: sanitized.latitude, longitude: sanitized.longitude };
+      }
+    }
+
     return null;
   }, [defaultSavedAddress]);
 
@@ -1687,6 +1698,26 @@ export default function Home() {
     appliedFilters,
     fetchRestaurants,
   ]);
+
+  // Instantly respond to address/location switches without requiring manual page refresh
+  useEffect(() => {
+    const handleImmediateLocationUpdate = () => {
+      homePageCache.restaurantsData = null;
+      homePageCache.effectiveZoneId = null;
+      homePageCache.lat = null;
+      homePageCache.lng = null;
+      homePageCache.heroBannersFetched = false;
+      homePageCache.adsBannersFetched = false;
+      fetchRestaurants({}, 1);
+    };
+
+    window.addEventListener('userLocationUpdated', handleImmediateLocationUpdate);
+    window.addEventListener('deliveryAddressModeUpdated', handleImmediateLocationUpdate);
+    return () => {
+      window.removeEventListener('userLocationUpdated', handleImmediateLocationUpdate);
+      window.removeEventListener('deliveryAddressModeUpdated', handleImmediateLocationUpdate);
+    };
+  }, [fetchRestaurants]);
 
   // Infinite scroll
   useEffect(() => {
