@@ -127,15 +127,23 @@ async function listNearbyOnlineDeliveryPartners(
 ) {
   const rId = (restaurantId?._id || restaurantId).toString();
   const restaurant = await FoodRestaurant.findById(rId)
-    .select("location")
+    .select("location city zoneId")
     .lean();
 
   if (!restaurant?.location?.coordinates?.length) {
+    const zoneQuery = {};
+    if (restaurant?.city) {
+      zoneQuery.$or = [
+        { city: new RegExp(`^${restaurant.city.trim()}$`, 'i') },
+        { address: new RegExp(restaurant.city.trim(), 'i') }
+      ];
+    }
     const partners = await FoodDeliveryPartner.find({
       status: "approved",
       availabilityStatus: "online",
+      ...zoneQuery
     })
-      .select("_id status name")
+      .select("_id status name city")
       .limit(Math.max(1, limit))
       .lean();
 
@@ -180,11 +188,19 @@ async function listNearbyOnlineDeliveryPartners(
   const picked = scored.slice(0, Math.max(1, limit));
 
   if (picked.length === 0) {
+    const zoneQuery = {};
+    if (restaurant?.city) {
+      zoneQuery.$or = [
+        { city: new RegExp(`^${restaurant.city.trim()}$`, 'i') },
+        { address: new RegExp(restaurant.city.trim(), 'i') }
+      ];
+    }
     const anyOnline = await FoodDeliveryPartner.find({
       status: { $in: allowedStatuses },
       availabilityStatus: "online",
+      ...zoneQuery
     })
-      .select("_id status name")
+      .select("_id status name city")
       .limit(Math.max(1, limit))
       .lean();
 

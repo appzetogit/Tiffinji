@@ -227,6 +227,41 @@ const zoneToPolygon = (zoneDoc) => {
     return { type: 'Polygon', coordinates: [ring] };
 };
 
+export const zoneToCentroid = (zoneDoc) => {
+    const coords = Array.isArray(zoneDoc?.coordinates) ? zoneDoc.coordinates : [];
+    if (!coords.length) return null;
+    let sumLat = 0;
+    let sumLng = 0;
+    let count = 0;
+    for (const c of coords) {
+        const lat = Number(c.latitude);
+        const lng = Number(c.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            sumLat += lat;
+            sumLng += lng;
+            count++;
+        }
+    }
+    if (!count) return null;
+    return { latitude: sumLat / count, longitude: sumLng / count };
+};
+
+export const isPointInPolygon = (lat, lng, polygon) => {
+    if (!Array.isArray(polygon) || polygon.length < 3) return false;
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = Number(polygon[i].longitude);
+        const yi = Number(polygon[i].latitude);
+        const xj = Number(polygon[j].longitude);
+        const yj = Number(polygon[j].latitude);
+        const intersect =
+            yi > lat !== yj > lat &&
+            lng < ((xj - xi) * (lat - yi)) / (yj - yi + 0.0) + xi;
+        if (intersect) inside = !inside;
+    }
+    return inside;
+};
+
 const notifyAdminsAboutRestaurantProfileReview = async (restaurantId, restaurantName) => {
     try {
         const { notifyAdminsSafely } = await import('../../../../core/notifications/firebase.service.js');
@@ -340,8 +375,17 @@ export const registerRestaurant = async (payload, files) => {
     const estimatedDeliveryTimeMinutes = parseEstimatedDeliveryMinutes(estimatedDeliveryTimeText);
 
     try {
-        const latNum = toFiniteNumber(latitude);
-        const lngNum = toFiniteNumber(longitude);
+        let latNum = toFiniteNumber(latitude);
+        let lngNum = toFiniteNumber(longitude);
+
+        if ((latNum === null || lngNum === null) && zoneId && mongoose.Types.ObjectId.isValid(String(zoneId).trim())) {
+            const zDoc = await FoodZone.findById(zoneId).lean();
+            const centroid = zoneToCentroid(zDoc);
+            if (centroid) {
+                latNum = centroid.latitude;
+                lngNum = centroid.longitude;
+            }
+        }
 
         // Allow retry: If a restaurant with the same name and phone exists but was rejected,
         // delete it so the user can re-register without "number blocked" errors.
@@ -1240,7 +1284,12 @@ export const listApprovedRestaurants = async (query = {}) => {
 
     const filter = { status: 'approved' };
 
-    if (query.city && String(query.city).trim()) {
+    const zoneIdRaw = String(query.zoneId || '').trim();
+
+    // Only apply city filter when zoneId is NOT provided.
+    // If zoneId is provided, the zone defines the service boundary;
+    // adding a strict city text filter can cause mismatches (e.g. geocoded district "Korba" vs restaurant city "Dipka").
+    if (!zoneIdRaw && query.city && String(query.city).trim()) {
         const city = String(query.city).trim().slice(0, 80);
         const rx = { $regex: escapeRegex(city), $options: 'i' };
         filter.$and = [...(filter.$and || []), { $or: [{ 'location.city': rx }, { city: rx }] }];
@@ -1296,32 +1345,70 @@ export const listApprovedRestaurants = async (query = {}) => {
         }
     }
 
-    // Optional zone polygon filter (when restaurant.zoneId is not set yet).
-    const zoneIdRaw = String(query.zoneId || '').trim();
-    if (zoneIdRaw && mongoose.Types.ObjectId.isValid(zoneIdRaw)) {
-        const zoneOr = [{ zoneId: new mongoose.Types.ObjectId(zoneIdRaw) }];
-        const zoneDoc = await FoodZone.findOne({ _id: zoneIdRaw, isActive: true }).lean();
-        const polygon = zoneToPolygon(zoneDoc);
-        if (polygon) {
-            zoneOr.push({ location: { $geoWithin: { $geometry: polygon } } });
-        }
-        filter.$and = [...(filter.$and || []), { $or: zoneOr }];
-    }
-
-    // Only show restaurants that have at least one approved menu item.
-    const restaurantIdsWithMenu = await FoodItem.distinct('restaurantId', { approvalStatus: 'approved' });
-    filter._id = { $in: restaurantIdsWithMenu };
-
     const lat = toFiniteNumber(query.lat);
     const lng = toFiniteNumber(query.lng);
+
+    // Resolve target zone: either from query.zoneId or auto-detected from user's coordinates.
+    // STRICT ZONE ISOLATION: A zone MUST ONLY show its own restaurants, never other zones.
+    let effectiveZoneId = (zoneIdRaw && mongoose.Types.ObjectId.isValid(zoneIdRaw))
+        ? new mongoose.Types.ObjectId(zoneIdRaw)
+        : null;
+
+    if (!effectiveZoneId && lat !== null && lng !== null) {
+        const activeZones = await FoodZone.find({ isActive: true }).lean();
+        for (const z of activeZones) {
+            const coords = Array.isArray(z.coordinates) ? z.coordinates : [];
+            if (isPointInPolygon(lat, lng, coords)) {
+                effectiveZoneId = z._id;
+                break;
+            }
+        }
+    }
+
+    if (effectiveZoneId) {
+        const zoneDoc = await FoodZone.findOne({ _id: effectiveZoneId, isActive: true }).lean();
+        const polygon = zoneToPolygon(zoneDoc);
+        // STRICT ZONE ISOLATION:
+        // A restaurant MUST belong to this zone (zoneId == effectiveZoneId),
+        // OR if an unassigned restaurant has no zoneId, it must fall within the zone polygon.
+        // A restaurant belonging to another zone will NEVER be shown.
+        filter.$and = [
+            ...(filter.$and || []),
+            {
+                $or: [
+                    { zoneId: effectiveZoneId },
+                    {
+                        $and: [
+                            { $or: [{ zoneId: { $exists: false } }, { zoneId: null }] },
+                            ...(polygon ? [{ location: { $geoWithin: { $geometry: polygon } } }] : [])
+                        ]
+                    }
+                ]
+            }
+        ];
+    } else if (lat !== null && lng !== null) {
+        // User provided coordinates but they are outside all active service zones:
+        // Do not leak restaurants from other far-away zones.
+        return { restaurants: [], total: 0, page, limit };
+    }
+
+    // Only filter by approved menu items when explicitly requested (e.g. hasMenu=true).
+    // Approved restaurants created by admin or newly onboarded should be visible immediately across the platform.
+    if (query.hasMenu === 'true') {
+        const restaurantIdsWithMenu = await FoodItem.distinct('restaurantId', { approvalStatus: 'approved' });
+        filter._id = { $in: restaurantIdsWithMenu };
+    }
+
     // Accept both radiusKm (preferred) and maxDistance (legacy frontend param).
     const radiusKm = toFiniteNumber(query.radiusKm) ?? toFiniteNumber(query.maxDistance);
     const sortBy = parseSortBy(query.sortBy);
 
     const projection = {
         restaurantName: 1,
+        slug: 1,
         area: 1,
         city: 1,
+        zoneId: 1,
         cuisines: 1,
         profileImage: 1,
         coverImages: 1,
@@ -1404,6 +1491,7 @@ export const listApprovedRestaurants = async (query = {}) => {
                 ...r,
                 restaurantId: r._id,
                 id: r._id,
+                slug: (r.slug && r.slug !== '-') ? r.slug : String(r._id),
                 name: r.restaurantName || '',
                 rating: normalizeRatingValue(r.rating),
                 totalRatings: normalizeTotalRatingsValue(r.totalRatings),
@@ -1454,6 +1542,7 @@ export const listApprovedRestaurants = async (query = {}) => {
             ...r,
             restaurantId: r._id,
             id: r._id,
+            slug: (r.slug && r.slug !== '-') ? r.slug : String(r._id),
             name: r.restaurantName || '',
             rating: normalizeRatingValue(r.rating),
             totalRatings: normalizeTotalRatingsValue(r.totalRatings),
@@ -1515,7 +1604,7 @@ export const getApprovedRestaurantByIdOrSlug = async (idOrSlug) => {
     };
 };
 
-export const listPublicOffers = async () => {
+export const listPublicOffers = async (query = {}) => {
     const now = new Date();
     const filter = {
         status: 'active',
@@ -1525,14 +1614,44 @@ export const listPublicOffers = async () => {
         ]
     };
 
+    const zoneIdRaw = String(query?.zoneId || '').trim();
+    let effectiveZoneId = (zoneIdRaw && mongoose.Types.ObjectId.isValid(zoneIdRaw))
+        ? new mongoose.Types.ObjectId(zoneIdRaw)
+        : null;
+
+    const lat = toFiniteNumber(query?.lat);
+    const lng = toFiniteNumber(query?.lng);
+    if (!effectiveZoneId && lat !== null && lng !== null) {
+        const activeZones = await FoodZone.find({ isActive: true }).lean();
+        for (const z of activeZones) {
+            const coords = Array.isArray(z.coordinates) ? z.coordinates : [];
+            if (isPointInPolygon(lat, lng, coords)) {
+                effectiveZoneId = z._id;
+                break;
+            }
+        }
+    }
+
+    if (effectiveZoneId) {
+        const zoneRestaurantIds = await FoodRestaurant.find({ zoneId: effectiveZoneId, status: 'approved' }).distinct('_id');
+        filter.$and.push({
+            $or: [
+                { restaurantScope: 'all' },
+                { restaurantId: { $in: zoneRestaurantIds } }
+            ]
+        });
+    } else if (lat !== null && lng !== null) {
+        return { allOffers: [], groupedByOffer: {} };
+    }
+
     const list = await FoodOffer.find(filter)
         .sort({ createdAt: -1 })
-        .populate({ path: 'restaurantId', select: 'restaurantName restaurantNameNormalized profileImage estimatedDeliveryTime rating' })
+        .populate({ path: 'restaurantId', select: 'restaurantName restaurantNameNormalized slug profileImage estimatedDeliveryTime rating' })
         .lean();
 
     const allOffers = list.map((o) => {
         const restaurant = o.restaurantId && typeof o.restaurantId === 'object' ? o.restaurantId : null;
-        const restaurantSlug = restaurant?.restaurantNameNormalized || undefined;
+        const restaurantSlug = (restaurant?.slug && restaurant?.slug !== '-') ? restaurant.slug : (restaurant?.restaurantNameNormalized || (restaurant?._id ? String(restaurant._id) : undefined));
         const restaurantName =
             o.restaurantScope === 'selected'
                 ? (restaurant?.restaurantName || 'Selected Restaurant')

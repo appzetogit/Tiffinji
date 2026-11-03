@@ -2055,7 +2055,7 @@ export default function RestaurantOnboarding() {
               value={step1.zoneId || ""}
               onChange={(e) => setStep1({ ...step1, zoneId: e.target.value })}
               className="mt-1 w-full h-9 rounded-md border border-input bg-white px-3 text-sm disabled:opacity-50"
-              disabled={zonesLoading || !isEditing || !!step1.location?.latitude}
+              disabled={zonesLoading || !isEditing}
             >
               <option value="">{zonesLoading ? "Loading zones..." : "Select a zone"}</option>
               {zones.map((z) => {

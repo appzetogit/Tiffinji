@@ -799,9 +799,16 @@ export default function CategoryPage() {
     const fetchRestaurants = async () => {
       try {
         setLoadingRestaurants(true)
+        const effectiveZoneId = zoneId || localStorage.getItem("userZoneId") || null;
+        const effectiveLat = location?.latitude || localStorage.getItem("userLat") || null;
+        const effectiveLng = location?.longitude || localStorage.getItem("userLng") || null;
         const params = {}
-        if (zoneId) {
-          params.zoneId = zoneId
+        if (effectiveZoneId) {
+          params.zoneId = effectiveZoneId
+        }
+        if (effectiveLat && effectiveLng) {
+          params.lat = effectiveLat
+          params.lng = effectiveLng
         }
         const response = await restaurantAPI.getRestaurants(params)
 

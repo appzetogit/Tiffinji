@@ -148,8 +148,10 @@ export default function Gourmet() {
               ) : (
                 gourmetRestaurants.map((item) => {
                   const restaurant = item.restaurant || item
-                  const restaurantSlug = restaurant.slug || restaurant.restaurantName?.toLowerCase().replace(/\s+/g, "-") || restaurant.name?.toLowerCase().replace(/\s+/g, "-") || ""
-                  const restaurantId = restaurant._id || restaurant.restaurantId || restaurant.id
+                  const cleanSlug = (restaurant.slug && restaurant.slug !== "-") ? restaurant.slug : "";
+                  const rawCandidate = String(restaurant.restaurantName || restaurant.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+                  const restaurantId = restaurant._id || restaurant.restaurantId || restaurant.id;
+                  const restaurantSlug = cleanSlug || (rawCandidate && rawCandidate !== "-" ? rawCandidate : "") || String(restaurantId || "");
                   const isFavorite = favorites.has(restaurantId)
 
                   // Calculate distance matching Home page & DB location logic

@@ -105,6 +105,7 @@ import chefMascot from "@food/assets/chef-mascot.png";
 import AdsBannerCarousel from "@food/components/user/home/AdsBannerCarousel";
 import { getRestaurantDisplayName } from "@food/utils/restaurantDisplayName";
 import { primeOutletTimingsCache } from "@food/utils/outletTimingsCache";
+import { sanitizeLocationCoords, CITY_COORDINATES_MAP } from "@food/utils/locationPersistence";
 
 // Explore More Icons
 import exploreOffers from "@food/assets/explore more icons/offers.png";
@@ -657,7 +658,7 @@ export default function Home() {
     getDefaultAddress,
   } = profileContext;
   const { addToCart, cart } = useCart();
-  const { location, loading: effectiveZoneLoading, requestLocation, zoneId: effectiveZoneId, zoneStatus: effectiveZoneStatus, isOutOfService: isEffectiveLocationOutOfService } = useAppLocation();
+  const { location, loading: effectiveZoneLoading, requestLocation, zoneId: rawAppZoneId, zoneStatus: effectiveZoneStatus, isOutOfService: isEffectiveLocationOutOfService } = useAppLocation();
   const [showToast, setShowToast] = useState(false);
   const [showManageCollections, setShowManageCollections] = useState(false);
   const [selectedRestaurantSlug, setSelectedRestaurantSlug] = useState(null);
@@ -759,7 +760,7 @@ export default function Home() {
     }
 
     if (deliveryAddressMode === "current") {
-      return location;
+      return sanitizeLocationCoords(location);
     }
 
     if (
@@ -768,7 +769,7 @@ export default function Home() {
       Number.isFinite(defaultSavedAddressLocation.longitude)
     ) {
       const resolvedAddress = formatSavedAddress(defaultSavedAddress);
-      return {
+      const rawLoc = {
         ...(location || {}),
         latitude: defaultSavedAddressLocation.latitude,
         longitude: defaultSavedAddressLocation.longitude,
@@ -791,15 +792,27 @@ export default function Home() {
           location?.formattedAddress ||
           "",
       };
+      return sanitizeLocationCoords(rawLoc);
     }
 
-    return location;
+    return sanitizeLocationCoords(location);
   }, [
     defaultSavedAddress,
     defaultSavedAddressLocation,
     formatSavedAddress,
     location,
   ]);
+
+  const effectiveZoneId = useMemo(() => {
+    if (rawAppZoneId) return rawAppZoneId;
+    const cityStr = String(effectiveLocation?.city || effectiveLocation?.address || effectiveLocation?.formattedAddress || '').toLowerCase();
+    for (const [cityName, targetCoords] of Object.entries(CITY_COORDINATES_MAP)) {
+      if (cityStr.includes(cityName) && targetCoords.zoneId) {
+        return targetCoords.zoneId;
+      }
+    }
+    return null;
+  }, [rawAppZoneId, effectiveLocation?.city, effectiveLocation?.address, effectiveLocation?.formattedAddress]);
 
   // Fetch categories (zone-aware) for the homepage category rail.
   useEffect(() => {
@@ -1184,8 +1197,17 @@ export default function Home() {
       const isDefaultFetch = Object.keys(filters).length === 0 ||
         (!filters.sortBy && !filters.selectedCuisine && (!filters.activeFilters || filters.activeFilters.size === 0));
 
-      if (isDefaultFetch && (effectiveZoneLoading || isEffectiveLocationOutOfService || !effectiveZoneId)) {
-        if (isEffectiveLocationOutOfService || !effectiveZoneId) {
+      if (isDefaultFetch && isEffectiveLocationOutOfService) {
+        setRestaurantsData([]);
+        setLoadingRestaurants(false);
+        return;
+      }
+
+      // If location is still resolving and we have no coordinates or zone yet, keep showing loader
+      if (isDefaultFetch && !effectiveZoneId && !effectiveLocation?.latitude) {
+        if (effectiveZoneLoading) {
+          setLoadingRestaurants(true);
+        } else {
           setRestaurantsData([]);
           setLoadingRestaurants(false);
         }
@@ -1196,7 +1218,7 @@ export default function Home() {
         homePageCache.lat === roundCoord(effectiveLocation?.latitude) &&
         homePageCache.lng === roundCoord(effectiveLocation?.longitude);
 
-      if (isDefaultFetch && pageToLoad === 1 && homePageCache.restaurantsData && homePageCache.effectiveZoneId === effectiveZoneId && isLocationSame) {
+      if (isDefaultFetch && pageToLoad === 1 && homePageCache.restaurantsData && homePageCache.restaurantsData.length > 0 && homePageCache.effectiveZoneId === effectiveZoneId && isLocationSame) {
         setLoadingRestaurants(false);
         return;
       }
@@ -1282,7 +1304,11 @@ export default function Home() {
         params.page = pageToLoad;
         params.limit = 15;
 
-        if (effectiveLocation?.city) {
+        // Only send city if effectiveZoneId is not present.
+        // When effectiveZoneId is present, the zone itself defines the geofence.
+        // Passing an arbitrary geocoded city name (e.g., "Korba" or "Indore") when user is in "Dipka" zone
+        // causes restaurants in "Dipka" zone to be wrongly filtered out.
+        if (effectiveLocation?.city && !effectiveZoneId) {
           params.city = effectiveLocation.city;
         }
 
@@ -1465,7 +1491,7 @@ export default function Home() {
                 popularItems: Array.isArray(restaurant.popularItems) ? restaurant.popularItems : [],
                 itemDiscounts: Array.isArray(restaurant.itemDiscounts) ? restaurant.itemDiscounts : [],
                 offer: offerText,
-                slug: restaurant.slug,
+                slug: (restaurant.slug && restaurant.slug !== '-') ? restaurant.slug : (restaurant.mongoId || restaurant._id || restaurant.id || restaurant.restaurantId || ""),
                 restaurantId: restaurant.restaurantId,
                 pureVegRestaurant: restaurant.pureVegRestaurant === true,
                 location: restaurant.location, // Store location for distance recalculation
@@ -1604,10 +1630,20 @@ export default function Home() {
       buildRestaurantImageCandidates,
       effectiveLocation?.latitude,
       effectiveLocation?.longitude,
+      effectiveLocation?.city,
       effectiveZoneId,
       effectiveZoneLoading,
+      isEffectiveLocationOutOfService,
     ],
   );
+
+  // Invalidate in-memory cache when effective zone or coordinates change
+  useEffect(() => {
+    homePageCache.restaurantsData = null;
+    homePageCache.effectiveZoneId = null;
+    homePageCache.lat = null;
+    homePageCache.lng = null;
+  }, [effectiveZoneId, effectiveLocation?.latitude, effectiveLocation?.longitude]);
 
   const applyFiltersAndRefetch = useCallback(
     async (
@@ -1635,10 +1671,22 @@ export default function Home() {
     [activeFilters, sortBy, selectedCuisine, fetchRestaurants],
   );
 
-  // Fetch restaurants when appliedFilters change
+  // Fetch restaurants when appliedFilters change or when location/zone updates
   useEffect(() => {
+    if (isEffectiveLocationOutOfService) {
+      setRestaurantsData([]);
+      setLoadingRestaurants(false);
+      return;
+    }
     fetchRestaurants(appliedFilters, 1);
-  }, [appliedFilters, fetchRestaurants]);
+  }, [
+    effectiveZoneId,
+    effectiveLocation?.latitude,
+    effectiveLocation?.longitude,
+    isEffectiveLocationOutOfService,
+    appliedFilters,
+    fetchRestaurants,
+  ]);
 
   // Infinite scroll
   useEffect(() => {
@@ -1951,7 +1999,7 @@ export default function Home() {
         deliveryTime: "",
         image: normalizeImageUrl(image) || foodImages[0],
         images: imageCandidates.length > 0 ? imageCandidates : [foodImages[0]],
-        slug: restaurant?.slug || restaurant?.restaurantId || restaurantId,
+        slug: (restaurant?.slug && restaurant?.slug !== '-') ? restaurant.slug : (restaurant?.restaurantId || restaurantId || ""),
         offer: null,
         pureVegRestaurant: restaurant?.pureVegRestaurant === true,
         isActive: true,
@@ -2533,13 +2581,16 @@ export default function Home() {
                       {/* Horizontal Scroll List (Matching Screenshot 4) */}
                       <div className="flex overflow-x-auto no-scrollbar gap-4 px-4 pb-3 pt-1">
                         {recommendedForYouRestaurants.map((restaurant, index) => {
+                          const cleanSlug = (restaurant.slug && restaurant.slug !== "-") ? restaurant.slug : "";
+                          const rawCandidate = (typeof restaurant.name === "string" ? restaurant.name : (typeof restaurant.restaurantName === "string" ? restaurant.restaurantName : ""))
+                            .trim()
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, "-")
+                            .replace(/^-+|-+$/g, "");
                           const restaurantSlug =
-                            restaurant.slug ||
-                            (typeof restaurant.name === "string" ? restaurant.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-") : "") ||
-                            (typeof restaurant.restaurantName === "string" ? restaurant.restaurantName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-") : "") ||
-                            restaurant.id ||
-                            restaurant._id ||
-                            "";
+                            cleanSlug ||
+                            (rawCandidate && rawCandidate !== "-" ? rawCandidate : "") ||
+                            String(restaurant.mongoId || restaurant.id || restaurant._id || restaurant.restaurantId || `restaurant-${index}`);
                           const profileImg = restaurant.profileImage || restaurant.image || (Array.isArray(restaurant.images) ? restaurant.images[0] : "");
                           const ratingVal = Number(restaurant.rating) || 4.5;
                           const offerText = restaurant.offer || "WEEKEND FEAST • UP TO 50% OFF";

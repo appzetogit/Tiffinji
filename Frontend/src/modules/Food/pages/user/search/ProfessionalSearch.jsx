@@ -156,6 +156,18 @@ export default function ProfessionalSearch() {
   }, [userCoords, zoneId])
 
   useEffect(() => {
+    const handleLocationChange = () => {
+      sessionSearchCache.clear();
+      fetchCategories();
+      if (debouncedQuery || selectedCategoryId) {
+        performSearch(debouncedQuery, selectedCategoryId);
+      }
+    };
+    window.addEventListener("location-updated", handleLocationChange);
+    return () => window.removeEventListener("location-updated", handleLocationChange);
+  }, [debouncedQuery, selectedCategoryId, performSearch])
+
+  useEffect(() => {
     performSearch(debouncedQuery, selectedCategoryId)
     if (debouncedQuery) {
         setSearchParams({ q: debouncedQuery, ...(selectedCategoryId ? { cat: selectedCategoryId } : {}) }, { replace: true })

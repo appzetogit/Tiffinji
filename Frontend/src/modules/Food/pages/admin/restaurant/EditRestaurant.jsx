@@ -335,15 +335,38 @@ export default function EditRestaurant() {
   const handleSaveLocation = async () => {
     if (!restaurantId) return
 
-    const latitude = Number(locationForm.latitude)
-    const longitude = Number(locationForm.longitude)
+    let latitude = Number(locationForm.latitude)
+    let longitude = Number(locationForm.longitude)
 
     if (!locationForm.zoneId) {
       alert("Please select a zone")
       return
     }
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !locationForm.formattedAddress) {
-      alert("Please select a location from dropdown")
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      // Fallback to zone centroid if Map API was offline/failed
+      const selectedZone = zones.find((z) => normalizeZoneId(z?._id || z?.id) === normalizeZoneId(locationForm.zoneId))
+      const coords = Array.isArray(selectedZone?.coordinates) ? selectedZone.coordinates : []
+      if (coords.length > 0) {
+        let sumLat = 0, sumLng = 0, count = 0
+        coords.forEach((c) => {
+          const la = Number(c.latitude), lo = Number(c.longitude)
+          if (Number.isFinite(la) && Number.isFinite(lo)) {
+            sumLat += la
+            sumLng += lo
+            count++
+          }
+        })
+        if (count > 0) {
+          latitude = sumLat / count
+          longitude = sumLng / count
+        }
+      }
+    }
+
+    const resolvedAddress = locationForm.formattedAddress || locationForm.addressLine1 || currentZoneLabel || "Zone Location"
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      alert("Please select a location or choose a service zone with valid boundary coordinates.")
       return
     }
 
@@ -354,9 +377,9 @@ export default function EditRestaurant() {
         latitude,
         longitude,
         coordinates: [longitude, latitude],
-        formattedAddress: locationForm.formattedAddress || "",
-        address: locationForm.formattedAddress || "",
-        addressLine1: locationForm.addressLine1 || locationForm.formattedAddress || "",
+        formattedAddress: resolvedAddress,
+        address: resolvedAddress,
+        addressLine1: locationForm.addressLine1 || resolvedAddress,
         addressLine2: locationForm.addressLine2 || "",
         area: locationForm.area || "",
         city: locationForm.city || "",

@@ -1578,7 +1578,9 @@ export default function Under250() {
           </div>
         ) : (
           sortedAndFilteredRestaurants.map((restaurant) => {
-            const restaurantSlug = restaurant.slug || restaurant.name.toLowerCase().replace(/\s+/g, "-")
+            const cleanSlug = (restaurant.slug && restaurant.slug !== "-") ? restaurant.slug : "";
+            const rawCandidate = String(restaurant.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+            const restaurantSlug = cleanSlug || (rawCandidate && rawCandidate !== "-" ? rawCandidate : "") || String(restaurant.mongoId || restaurant.id || restaurant._id || restaurant.restaurantId || "");
             const availability = getRestaurantAvailabilityStatus(restaurant)
             const isClosed = !availability.isOpen
 

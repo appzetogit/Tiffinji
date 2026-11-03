@@ -332,7 +332,9 @@ export default function DiningExploreNear() {
             {/* Restaurant Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 md:gap-6">
               {filteredRestaurants.map((restaurant, index) => {
-                const restaurantSlug = restaurant.name.toLowerCase().replace(/\s+/g, "-")
+                const cleanSlug = (restaurant.slug && restaurant.slug !== "-") ? restaurant.slug : "";
+                const rawCandidate = String(restaurant.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+                const restaurantSlug = cleanSlug || (rawCandidate && rawCandidate !== "-" ? rawCandidate : "") || String(restaurant.id || restaurant._id || "");
                 const favorite = isFavorite(restaurantSlug)
 
                 const handleToggleFavorite = (e) => {

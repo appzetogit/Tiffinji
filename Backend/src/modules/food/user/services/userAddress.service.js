@@ -2,10 +2,58 @@ import mongoose from 'mongoose';
 import { FoodUser } from '../../../../core/users/user.model.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
 
-const toGeoPoint = ({ latitude, longitude }) => {
-    if (latitude === undefined || longitude === undefined) return undefined;
-    const lat = Number(latitude);
-    const lng = Number(longitude);
+const CITY_COORDINATES_MAP = {
+    dipka: { latitude: 22.3524, longitude: 82.5548 },
+    korba: { latitude: 22.3524, longitude: 82.5548 },
+    gevra: { latitude: 22.3524, longitude: 82.5548 },
+    satna: { latitude: 24.5710, longitude: 80.8320 },
+    'panna naka': { latitude: 24.5710, longitude: 80.8320 },
+    rewa: { latitude: 24.5373, longitude: 81.3009 },
+    bhilai: { latitude: 21.1900, longitude: 81.3800 },
+    durg: { latitude: 21.1900, longitude: 81.3800 },
+    bhopal: { latitude: 23.2599, longitude: 77.4126 },
+    jabalpur: { latitude: 23.1815, longitude: 79.9864 },
+    'tilda newra': { latitude: 21.5260, longitude: 81.7720 },
+    tilda: { latitude: 21.5260, longitude: 81.7720 },
+    newra: { latitude: 21.5260, longitude: 81.7720 },
+    indore: { latitude: 22.7196, longitude: 75.8577 },
+};
+
+function calculateDistanceInKm(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+const toGeoPoint = (dto) => {
+    let lat = Number(dto?.latitude);
+    let lng = Number(dto?.longitude);
+    const text = String(dto?.city || dto?.street || dto?.additionalDetails || '').toLowerCase();
+
+    for (const [cityName, targetCoords] of Object.entries(CITY_COORDINATES_MAP)) {
+        if (text.includes(cityName)) {
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                lat = targetCoords.latitude;
+                lng = targetCoords.longitude;
+                break;
+            }
+            const dist = calculateDistanceInKm(lat, lng, targetCoords.latitude, targetCoords.longitude);
+            if (dist > 50) {
+                lat = targetCoords.latitude;
+                lng = targetCoords.longitude;
+                break;
+            }
+        }
+    }
+
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return undefined;
     return { type: 'Point', coordinates: [lng, lat] };
 };

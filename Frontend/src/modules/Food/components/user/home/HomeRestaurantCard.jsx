@@ -14,22 +14,25 @@ import { useDeferredOutletTimings } from "@food/hooks/user/useDeferredOutletTimi
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability";
 
 function resolveRestaurantSlug(restaurant, index) {
+  if (typeof restaurant?.slug === "string" && restaurant.slug.trim() && restaurant.slug.trim() !== "-") {
+    return restaurant.slug.trim();
+  }
   const nameStr = typeof restaurant?.name === "string" ? restaurant.name.trim() : "";
-  const fallbackSlugSource =
-    nameStr ||
-    (typeof restaurant?.restaurantName === "string"
-      ? restaurant.restaurantName.trim()
-      : "") ||
-    String(
-      restaurant?.slug ||
-        restaurant?.id ||
-        restaurant?._id ||
-        `restaurant-${index}`,
-    );
-
-  return typeof restaurant?.slug === "string" && restaurant.slug.trim()
-    ? restaurant.slug.trim()
-    : fallbackSlugSource.toLowerCase().replace(/\s+/g, "-");
+  const restaurantNameStr = typeof restaurant?.restaurantName === "string" ? restaurant.restaurantName.trim() : "";
+  const rawCandidate = (nameStr || restaurantNameStr)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (rawCandidate && rawCandidate !== "-") {
+    return rawCandidate;
+  }
+  return String(
+    restaurant?.mongoId ||
+    restaurant?.id ||
+    restaurant?._id ||
+    restaurant?.restaurantId ||
+    `restaurant-${index}`
+  );
 }
 
 function HomeRestaurantCard({

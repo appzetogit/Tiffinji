@@ -8,7 +8,7 @@ import { Textarea } from "@food/components/ui/textarea"
 import { useLocation as useGeoLocation } from "@food/hooks/useLocation"
 import { useAppLocation } from "@food/hooks/useAppLocation"
 import { useProfile } from "@food/context/ProfileContext"
-import { sanitizeLocationCoords } from "@food/utils/locationPersistence"
+import { sanitizeLocationCoords, readStoredUserLocation } from "@food/utils/locationPersistence"
 import { toast } from "sonner"
 import { locationAPI, userAPI } from "@food/api"
 import { Loader } from '@googlemaps/js-api-loader'
@@ -55,7 +55,17 @@ export default function LocationSelectorOverlay({ isOpen, onClose }) {
   const navigate = useNavigate()
   const { addresses = [], addAddress, updateAddress, setDefaultAddress, userProfile, isAuthenticated } = useProfile()
   const [showAddressForm, setShowAddressForm] = useState(false)
-  const [mapPosition, setMapPosition] = useState([22.7196, 75.8577]) // Default Indore coordinates [lat, lng]
+  const [mapPosition, setMapPosition] = useState(() => {
+    if (location?.latitude && location?.longitude) {
+      const sanitized = sanitizeLocationCoords(location)
+      return [sanitized.latitude, sanitized.longitude]
+    }
+    const stored = readStoredUserLocation()
+    if (stored?.latitude && stored?.longitude) {
+      return [stored.latitude, stored.longitude]
+    }
+    return [22.7196, 75.8577]
+  })
   const [addressFormData, setAddressFormData] = useState({
     street: "",
     city: "",

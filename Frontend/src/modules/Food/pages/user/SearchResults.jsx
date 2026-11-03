@@ -197,14 +197,16 @@ export default function SearchResults() {
       try {
         setLoadingRestaurants(true)
         debugLog('?? Fetching restaurants from API...')
-        // Optional: Add zoneId if available (for sorting/filtering, but show all restaurants)
+        const effectiveZoneId = zoneId || localStorage.getItem("userZoneId") || null;
+        const effectiveLat = location?.latitude || localStorage.getItem("userLat") || null;
+        const effectiveLng = location?.longitude || localStorage.getItem("userLng") || null;
         const params = {}
-        if (zoneId) {
-          params.zoneId = zoneId
+        if (effectiveZoneId) {
+          params.zoneId = effectiveZoneId
         }
-        if (location?.latitude && location?.longitude) {
-          params.lat = location.latitude
-          params.lng = location.longitude
+        if (effectiveLat && effectiveLng) {
+          params.lat = effectiveLat
+          params.lng = effectiveLng
         }
         const response = await restaurantAPI.getRestaurants(params)
 
@@ -969,10 +971,13 @@ export default function SearchResults() {
             {/* Small Restaurant Cards - Horizontal Scroll */}
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3 sm:gap-4 lg:gap-5">
               {filteredRecommended.slice(0, 6).map((restaurant) => {
+                const cleanSlug = (restaurant.slug && restaurant.slug !== "-") ? restaurant.slug : "";
+                const rawCandidate = String(restaurant.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+                const targetSlug = cleanSlug || (rawCandidate && rawCandidate !== "-" ? rawCandidate : "") || String(restaurant.id || restaurant._id || "");
                 return (
                   <Link
                     key={restaurant.id}
-                    to={`/user/restaurants/${restaurant.slug || restaurant.name.toLowerCase().replace(/\s+/g, '-')}`}
+                    to={`/user/restaurants/${targetSlug}`}
                     className="block"
                   >
                     <div className={`group ${shouldShowGrayscale ? 'grayscale opacity-75' : ''}`}>
@@ -1037,11 +1042,13 @@ export default function SearchResults() {
           {/* Large Restaurant Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5 lg:gap-6">
             {nonRepeatedAllRestaurants.map((restaurant) => {
-              const restaurantSlug = restaurant.name.toLowerCase().replace(/\s+/g, "-")
+              const cleanSlug = (restaurant.slug && restaurant.slug !== "-") ? restaurant.slug : "";
+              const rawCandidate = String(restaurant.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+              const restaurantSlug = cleanSlug || (rawCandidate && rawCandidate !== "-" ? rawCandidate : "") || String(restaurant.id || restaurant._id || "");
               const isFavorite = favorites.has(restaurant.id)
 
               return (
-                <Link key={restaurant.id} to={`/user/restaurants/${restaurant.slug || restaurantSlug}`} className="h-full flex">
+                <Link key={restaurant.id} to={`/user/restaurants/${restaurantSlug}`} className="h-full flex">
                   <Card className={`overflow-hidden cursor-pointer border-0 dark:border-gray-800 group bg-white dark:bg-[#1a1a1a] shadow-md hover:shadow-xl transition-all duration-300 py-0 rounded-md flex flex-col h-full w-full ${shouldShowGrayscale ? 'grayscale opacity-75' : ''
                     }`}>
                     {/* Image Section */}

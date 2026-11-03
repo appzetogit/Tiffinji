@@ -28,6 +28,7 @@ import { FoodSafetyEmergencyReport } from '../models/safetyEmergencyReport.model
 import { FoodAddon } from '../../restaurant/models/foodAddon.model.js';
 import { FoodSupportTicket } from '../../user/models/supportTicket.model.js';
 import { FoodRestaurantSupportTicket } from '../../restaurant/models/supportTicket.model.js';
+import { invalidateCache } from '../../../../middleware/cache.js';
 import { FoodOrder } from '../../orders/models/order.model.js';
 import { FoodTransaction } from '../../orders/models/foodTransaction.model.js';
 import { FoodRestaurantWithdrawal } from '../../restaurant/models/foodRestaurantWithdrawal.model.js';
@@ -2461,6 +2462,16 @@ export async function updateRestaurantById(id, body = {}) {
     }
 
     await doc.save();
+    try {
+        await invalidateCache('restaurants:*');
+        await invalidateCache('restaurant_detail:*');
+        const { getIO } = await import('../../../../config/socket.js');
+        const io = getIO();
+        if (io) {
+            io.emit('restaurant-created', { restaurant: restaurant.toObject() });
+            io.emit('restaurants-updated', { timestamp: Date.now() });
+        }
+    } catch (_) {}
     return FoodRestaurant.findById(id).select('-__v').populate('zoneId', 'name zoneName serviceLocation isActive').lean();
 }
 
@@ -2470,7 +2481,7 @@ export async function updateRestaurantStatus(id, body = {}) {
     const isActive = parseBooleanLike(raw, 'status');
     const status = isActive ? 'approved' : 'rejected';
 
-    return FoodRestaurant.findByIdAndUpdate(
+    const result = await FoodRestaurant.findByIdAndUpdate(
         id,
         {
             $set: {
@@ -2482,6 +2493,19 @@ export async function updateRestaurantStatus(id, body = {}) {
         },
         { new: true, runValidators: false }
     ).lean();
+
+    try {
+        await invalidateCache('restaurants:*');
+        await invalidateCache('restaurant_detail:*');
+        const { getIO } = await import('../../../../config/socket.js');
+        const io = getIO();
+        if (io) {
+            io.emit('restaurant-created', { restaurant: restaurant.toObject() });
+            io.emit('restaurants-updated', { timestamp: Date.now() });
+        }
+    } catch (_) {}
+
+    return result;
 }
 
 export async function updateRestaurantLocation(id, body = {}) {
@@ -2546,7 +2570,45 @@ export async function updateRestaurantLocation(id, body = {}) {
         }
     }
 
+    // If coordinates are missing (e.g. Map API failure or manual entry) but zoneId exists,
+    // populate location coordinates from the zone's centroid so the restaurant is visible in geo queries.
+    if ((latitude === null || longitude === null || !doc.location?.coordinates?.length) && doc.zoneId) {
+        const zoneDoc = await FoodZone.findById(doc.zoneId).lean();
+        const coords = Array.isArray(zoneDoc?.coordinates) ? zoneDoc.coordinates : [];
+        if (coords.length > 0) {
+            let sumLat = 0;
+            let sumLng = 0;
+            let count = 0;
+            for (const c of coords) {
+                const lat = Number(c.latitude);
+                const lng = Number(c.longitude);
+                if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                    sumLat += lat;
+                    sumLng += lng;
+                    count++;
+                }
+            }
+            if (count > 0) {
+                const centerLat = sumLat / count;
+                const centerLng = sumLng / count;
+                doc.location.latitude = centerLat;
+                doc.location.longitude = centerLng;
+                doc.location.coordinates = [centerLng, centerLat];
+            }
+        }
+    }
+
     await doc.save();
+    try {
+        await invalidateCache('restaurants:*');
+        await invalidateCache('restaurant_detail:*');
+        const { getIO } = await import('../../../../config/socket.js');
+        const io = getIO();
+        if (io) {
+            io.emit('restaurant-created', { restaurant: restaurant.toObject() });
+            io.emit('restaurants-updated', { timestamp: Date.now() });
+        }
+    } catch (_) {}
     return FoodRestaurant.findById(id).select('-__v').populate('zoneId', 'name zoneName serviceLocation isActive').lean();
 }
 
@@ -3319,6 +3381,10 @@ export async function createRestaurantByAdmin(body) {
         approvedAt: new Date()
     };
 
+    const restaurantName = toStr(body.restaurantName || body.name);
+    const slugRaw = toStr(body.slug) || restaurantName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    doc.slug = (slugRaw && slugRaw !== '-') ? slugRaw : `rest-${Date.now()}`;
+
     if (body.zoneId !== undefined) {
         const zoneId = String(body.zoneId || '').trim();
         if (!zoneId) {
@@ -3330,12 +3396,37 @@ export async function createRestaurantByAdmin(body) {
         }
     }
 
-    if (latitude !== null && longitude !== null) {
+    let finalLat = latitude;
+    let finalLng = longitude;
+    if ((finalLat === null || finalLng === null) && doc.zoneId) {
+        const zoneDoc = await FoodZone.findById(doc.zoneId).lean();
+        const coords = Array.isArray(zoneDoc?.coordinates) ? zoneDoc.coordinates : [];
+        if (coords.length > 0) {
+            let sumLat = 0;
+            let sumLng = 0;
+            let count = 0;
+            for (const c of coords) {
+                const lat = Number(c.latitude);
+                const lng = Number(c.longitude);
+                if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                    sumLat += lat;
+                    sumLng += lng;
+                    count++;
+                }
+            }
+            if (count > 0) {
+                finalLat = sumLat / count;
+                finalLng = sumLng / count;
+            }
+        }
+    }
+
+    if (finalLat !== null && finalLng !== null) {
         doc.location = {
             type: 'Point',
-            coordinates: [longitude, latitude],
-            latitude,
-            longitude,
+            coordinates: [finalLng, finalLat],
+            latitude: finalLat,
+            longitude: finalLng,
             formattedAddress: toStr(loc.formattedAddress || loc.address || loc.addressLine1),
             address: toStr(loc.address || loc.formattedAddress || loc.addressLine1),
             addressLine1: toStr(loc.addressLine1 || loc.formattedAddress || loc.address),
@@ -3356,26 +3447,109 @@ export async function createRestaurantByAdmin(body) {
     }
 
     const restaurant = await FoodRestaurant.create(doc);
+
+    try {
+        await FoodRestaurantOutletTimings.findOneAndUpdate(
+            { restaurantId: restaurant._id },
+            {
+                $setOnInsert: {
+                    restaurantId: restaurant._id,
+                    timings: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => ({
+                        day,
+                        isOpen: true,
+                        openingTime: restaurant.openingTime || '09:00',
+                        closingTime: restaurant.closingTime || '22:00'
+                    }))
+                }
+            },
+            { upsert: true, new: true }
+        );
+        await invalidateCache('restaurants:*');
+        await invalidateCache('restaurant_detail:*');
+        const { getIO } = await import('../../../../config/socket.js');
+        const io = getIO();
+        if (io) {
+            io.emit('restaurant-created', { restaurant: restaurant.toObject() });
+            io.emit('restaurants-updated', { timestamp: Date.now() });
+        }
+    } catch (_) {}
+
     return restaurant.toObject();
 }
 
 export async function approveRestaurant(id) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const existing = await FoodRestaurant.findById(id).lean();
+    if (!existing) return null;
+
+    const setFields = {
+        status: 'approved',
+        approvedAt: new Date(),
+        rejectedAt: undefined,
+        rejectionReason: undefined,
+        pendingUpdateReason: undefined
+    };
+
+    if (!existing.slug || existing.slug === '-') {
+        const slugRaw = (existing.restaurantName || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        setFields.slug = (slugRaw && slugRaw !== '-') ? slugRaw : String(existing._id);
+    }
+
+    // Auto-populate coordinates from zone if missing so it is immediately visible in geo queries
+    if ((!existing.location?.coordinates?.length || !existing.location?.latitude) && existing.zoneId) {
+        const zoneDoc = await FoodZone.findById(existing.zoneId).lean();
+        const coords = Array.isArray(zoneDoc?.coordinates) ? zoneDoc.coordinates : [];
+        if (coords.length > 0) {
+            let sumLat = 0, sumLng = 0, count = 0;
+            for (const c of coords) {
+                const lat = Number(c.latitude), lng = Number(c.longitude);
+                if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                    sumLat += lat; sumLng += lng; count++;
+                }
+            }
+            if (count > 0) {
+                const centerLat = sumLat / count;
+                const centerLng = sumLng / count;
+                setFields['location.latitude'] = centerLat;
+                setFields['location.longitude'] = centerLng;
+                setFields['location.coordinates'] = [centerLng, centerLat];
+            }
+        }
+    }
+
     const updated = await FoodRestaurant.findByIdAndUpdate(
         id,
-        {
-            $set: {
-                status: 'approved',
-                approvedAt: new Date(),
-                rejectedAt: undefined,
-                rejectionReason: undefined,
-                pendingUpdateReason: undefined
-            }
-        },
+        { $set: setFields },
         { new: true, runValidators: false }
     ).lean();
 
     if (updated) {
+        try {
+            await invalidateCache('restaurants:*');
+            await invalidateCache('restaurant_detail:*');
+            const { getIO } = await import('../../../../config/socket.js');
+            const io = getIO();
+            if (io) {
+                io.emit('restaurant-approved', { restaurant: updated });
+                io.emit('restaurants-updated', { timestamp: Date.now() });
+            }
+            await FoodRestaurantOutletTimings.findOneAndUpdate(
+                { restaurantId: updated._id },
+                {
+                    $setOnInsert: {
+                        restaurantId: updated._id,
+                        timings: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => ({
+                            day,
+                            isOpen: true,
+                            openingTime: updated.openingTime || '09:00',
+                            closingTime: updated.closingTime || '22:00'
+                        }))
+                    }
+                },
+                { upsert: true, new: true }
+            );
+        } catch (_) {}
+
         try {
             const { notifyOwnersSafely } = await import('../../../../core/notifications/firebase.service.js');
             await notifyOwnersSafely(
@@ -4697,6 +4871,18 @@ export async function createZone(body) {
         isActive: body.isActive !== false
     });
     await zone.save();
+    try {
+        await invalidateCache('restaurants:*');
+        await invalidateCache('restaurant_detail:*');
+        await invalidateCache('categories:*');
+        const { getIO } = await import('../../../../config/socket.js');
+        const io = getIO();
+        if (io) {
+            io.emit('zone-created', { zone: zone.toObject() });
+            io.emit('zones-updated', { timestamp: Date.now() });
+            io.emit('restaurants-updated', { timestamp: Date.now() });
+        }
+    } catch (_) {}
     return { zone: zone.toObject() };
 }
 
@@ -4719,11 +4905,35 @@ export async function updateZone(id, body) {
     if (zone.name) zone.serviceLocation = zone.serviceLocation || zone.name;
 
     await zone.save();
+    try {
+        await invalidateCache('restaurants:*');
+        await invalidateCache('restaurant_detail:*');
+        await invalidateCache('categories:*');
+        const { getIO } = await import('../../../../config/socket.js');
+        const io = getIO();
+        if (io) {
+            io.emit('zone-updated', { zone: zone.toObject() });
+            io.emit('zones-updated', { timestamp: Date.now() });
+            io.emit('restaurants-updated', { timestamp: Date.now() });
+        }
+    } catch (_) {}
     return { zone: zone.toObject() };
 }
 
 export async function deleteZone(id) {
     const zone = await FoodZone.findByIdAndDelete(id);
+    try {
+        await invalidateCache('restaurants:*');
+        await invalidateCache('restaurant_detail:*');
+        await invalidateCache('categories:*');
+        const { getIO } = await import('../../../../config/socket.js');
+        const io = getIO();
+        if (io) {
+            io.emit('zone-deleted', { id });
+            io.emit('zones-updated', { timestamp: Date.now() });
+            io.emit('restaurants-updated', { timestamp: Date.now() });
+        }
+    } catch (_) {}
     return zone ? { id } : null;
 }
 

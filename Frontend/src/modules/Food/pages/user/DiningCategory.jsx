@@ -64,12 +64,15 @@ export default function DiningCategory() {
     const fetchRestaurants = async () => {
       try {
         setIsLoading(true)
+        const effectiveZoneId = zoneId || localStorage.getItem("userZoneId") || null;
+        const effectiveLat = location?.latitude || localStorage.getItem("userLat") || null;
+        const effectiveLng = location?.longitude || localStorage.getItem("userLng") || null;
         const params = {}
         if (category) params.category = category
-        if (zoneId) params.zoneId = zoneId
-        if (location?.latitude && location?.longitude) {
-          params.lat = location.latitude
-          params.lng = location.longitude
+        if (effectiveZoneId) params.zoneId = effectiveZoneId
+        if (effectiveLat && effectiveLng) {
+          params.lat = effectiveLat
+          params.lng = effectiveLng
         } else if (location?.city) {
           params.city = location.city
         }

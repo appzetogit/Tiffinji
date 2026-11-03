@@ -31,7 +31,16 @@ export default function Offers() {
       try {
         setLoading(true)
         setError(null)
-        const response = await restaurantAPI.getPublicOffers()
+        const effectiveZoneId = localStorage.getItem("userZoneId") || null
+        const effectiveLat = localStorage.getItem("userLat") || null
+        const effectiveLng = localStorage.getItem("userLng") || null
+        const params = {}
+        if (effectiveZoneId) params.zoneId = effectiveZoneId
+        if (effectiveLat && effectiveLng) {
+          params.lat = effectiveLat
+          params.lng = effectiveLng
+        }
+        const response = await restaurantAPI.getPublicOffers(params)
         const data = response?.data?.data
         
         if (data) {
@@ -105,7 +114,7 @@ export default function Offers() {
                   {dishes.slice(0, 8).map((dish) => (
                     <Link 
                       key={dish.id} 
-                      to={`/user/restaurants/${dish.restaurantSlug}`}
+                      to={`/user/restaurants/${(dish.restaurantSlug && dish.restaurantSlug !== '-') ? dish.restaurantSlug : (dish.restaurantId || "")}`}
                       className="w-full"
                     >
                       <div className="group">

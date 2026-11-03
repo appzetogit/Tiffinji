@@ -1,4 +1,4 @@
-﻿import { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react"
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react"
 import { authAPI, userAPI } from "@food/api"
 import { persistUserLocation, notifyLocationUpdated, notifyDeliveryModeUpdated } from "@food/utils/locationPersistence"
 const debugLog = (...args) => {}
@@ -279,7 +279,18 @@ export function ProfileProvider({ children }) {
   }, [])
 
   const setDefaultAddress = useCallback(async (id) => {
-    // Optimistic UI update first
+    // Find target address synchronously before queuing state update
+    const targetAddress =
+      addresses.find((addr) => String(getAddressId(addr)) === String(id)) ||
+      (() => {
+        try {
+          const raw = localStorage.getItem("userAddresses")
+          const parsed = raw ? JSON.parse(raw) : []
+          return parsed.find((addr) => String(getAddressId(addr)) === String(id))
+        } catch { return null }
+      })()
+
+    // Optimistic UI update first (pure state update)
     setAddresses((prev) => {
       const updatedAddresses = prev.map((addr) => ({
         ...addr,
@@ -287,13 +298,18 @@ export function ProfileProvider({ children }) {
       }))
 
       localStorage.setItem("userAddresses", JSON.stringify(updatedAddresses))
-      notifyDeliveryModeUpdated('saved')
+      return updatedAddresses
+    })
 
-      const selectedAddress =
-        updatedAddresses.find((addr) => addr.isDefault) || updatedAddresses[0]
+    const selectedToSync = targetAddress
 
-      if (selectedAddress) {
-        const coordinates = selectedAddress?.location?.coordinates
+    // Perform location side-effects outside of render phase to prevent
+    // "Cannot update a component (LocationProvider) while rendering a different component (ProfileProvider)"
+    if (selectedToSync) {
+      setTimeout(() => {
+        notifyDeliveryModeUpdated('saved')
+
+        const coordinates = selectedToSync?.location?.coordinates
         const lngFromCoords =
           Array.isArray(coordinates) && coordinates.length >= 2
             ? Number(coordinates[0])
@@ -305,12 +321,12 @@ export function ProfileProvider({ children }) {
         const lat = Number(
           Number.isFinite(latFromCoords)
             ? latFromCoords
-            : selectedAddress?.latitude ?? selectedAddress?.lat,
+            : selectedToSync?.latitude ?? selectedToSync?.lat,
         )
         const lng = Number(
           Number.isFinite(lngFromCoords)
             ? lngFromCoords
-            : selectedAddress?.longitude ?? selectedAddress?.lng,
+            : selectedToSync?.longitude ?? selectedToSync?.lng,
         )
 
         if (Number.isFinite(lat) && Number.isFinite(lng)) {
@@ -323,30 +339,30 @@ export function ProfileProvider({ children }) {
           }
 
           const parts = [
-            selectedAddress?.additionalDetails,
-            selectedAddress?.street,
-            selectedAddress?.city,
-            selectedAddress?.state,
-            selectedAddress?.zipCode,
+            selectedToSync?.additionalDetails,
+            selectedToSync?.street,
+            selectedToSync?.city,
+            selectedToSync?.state,
+            selectedToSync?.zipCode,
           ].filter(Boolean)
 
           const resolvedAddress =
             parts.length > 0
               ? parts.join(", ")
-              : selectedAddress?.formattedAddress || selectedAddress?.address || ""
+              : selectedToSync?.formattedAddress || selectedToSync?.address || ""
 
           const syncedLocation = {
             ...existingLocation,
             latitude: lat,
             longitude: lng,
             area:
-              selectedAddress?.additionalDetails ||
-              selectedAddress?.street ||
-              selectedAddress?.area ||
+              selectedToSync?.additionalDetails ||
+              selectedToSync?.street ||
+              selectedToSync?.area ||
               existingLocation?.area ||
               "",
-            city: selectedAddress?.city || existingLocation?.city || "",
-            state: selectedAddress?.state || existingLocation?.state || "",
+            city: selectedToSync?.city || existingLocation?.city || "",
+            state: selectedToSync?.state || existingLocation?.state || "",
             address: resolvedAddress || existingLocation?.address || "",
             formattedAddress:
               resolvedAddress || existingLocation?.formattedAddress || "",
@@ -355,10 +371,8 @@ export function ProfileProvider({ children }) {
           persistUserLocation(syncedLocation, { mode: 'saved' })
           notifyLocationUpdated(syncedLocation)
         }
-      }
-
-      return updatedAddresses
-    })
+      }, 0)
+    }
 
     try {
       await userAPI.setDefaultAddress(id)

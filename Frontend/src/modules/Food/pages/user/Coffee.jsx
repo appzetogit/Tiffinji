@@ -125,7 +125,9 @@ export default function Coffee() {
         {/* Store List */}
         <div className="space-y-0">
           {stores.map((store, index) => {
-            const storeSlug = store.name.toLowerCase().replace(/\s+/g, "-")
+            const cleanSlug = (store.slug && store.slug !== "-") ? store.slug : "";
+            const rawCandidate = String(store.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+            const storeSlug = cleanSlug || (rawCandidate && rawCandidate !== "-" ? rawCandidate : "") || String(store.id || store._id || "");
             const isHighRating = store.rating >= 4.0
 
             return (

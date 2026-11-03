@@ -71,34 +71,54 @@ export const searchUnified = async (query = {}, options = {}) => {
     }
 
     if (effectiveZoneId && mongoose.Types.ObjectId.isValid(effectiveZoneId)) {
-        const zoneOr = [
-            { zoneId: new mongoose.Types.ObjectId(effectiveZoneId) },
-            { zoneId: String(effectiveZoneId) }
-        ];
+        const objZoneId = new mongoose.Types.ObjectId(effectiveZoneId);
+        let polygon = null;
         try {
             const { FoodZone } = await import('../../admin/models/zone.model.js');
-            const zoneDoc = await FoodZone.findOne({ _id: effectiveZoneId, isActive: true }).lean();
+            const zoneDoc = await FoodZone.findOne({ _id: objZoneId, isActive: true }).lean();
             if (zoneDoc && Array.isArray(zoneDoc.coordinates) && zoneDoc.coordinates.length >= 3) {
                 const polygonCoords = zoneDoc.coordinates.map(c => [Number(c.longitude), Number(c.latitude)]);
                 if (polygonCoords[0][0] !== polygonCoords[polygonCoords.length - 1][0] ||
                     polygonCoords[0][1] !== polygonCoords[polygonCoords.length - 1][1]) {
                     polygonCoords.push(polygonCoords[0]);
                 }
-                zoneOr.push({
-                    location: {
-                        $geoWithin: {
-                            $geometry: {
-                                type: 'Polygon',
-                                coordinates: [polygonCoords]
-                            }
-                        }
-                    }
-                });
+                polygon = {
+                    type: 'Polygon',
+                    coordinates: [polygonCoords]
+                };
             }
-        } catch (e) {
-            // Ignore polygon resolution failures
-        }
-        restaurantFilter.$and = [...(restaurantFilter.$and || []), { $or: zoneOr }];
+        } catch (_) {}
+
+        // STRICT ZONE ISOLATION: A restaurant MUST belong to this zone (zoneId == effectiveZoneId),
+        // OR if unassigned (no zoneId), fall inside the zone polygon. Out-of-zone restaurants are NEVER included.
+        restaurantFilter.$and = [
+            ...(restaurantFilter.$and || []),
+            {
+                $or: [
+                    { zoneId: objZoneId },
+                    { zoneId: String(effectiveZoneId) },
+                    {
+                        $and: [
+                            { $or: [{ zoneId: { $exists: false } }, { zoneId: null }] },
+                            ...(polygon ? [{ location: { $geoWithin: { $geometry: polygon } } }] : [])
+                        ]
+                    }
+                ]
+            }
+        ];
+    } else if (lat && lng && Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) {
+        // User provided coordinates but they are outside all active service zones:
+        // Do not leak restaurants or food items from other far-away zones.
+        return {
+            success: true,
+            data: {
+                restaurants: [],
+                total: 0,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                zoneFiltered: true
+            }
+        };
     }
 
     if (isVeg === 'true') {
@@ -167,7 +187,11 @@ export const searchUnified = async (query = {}, options = {}) => {
 
         matchedRestaurants.forEach(r => {
             restaurantIds.add(r._id.toString());
-            restaurantDetailsMap.set(r._id.toString(), { ...r, matchType: 'restaurant' });
+            restaurantDetailsMap.set(r._id.toString(), {
+                ...r,
+                matchType: 'restaurant',
+                slug: (r.slug && r.slug !== '-') ? r.slug : String(r._id)
+            });
         });
 
         // B. Search by Food Item Name (strictly scoped to eligible zone restaurants)
@@ -206,7 +230,8 @@ export const searchUnified = async (query = {}, options = {}) => {
                         matchedDishId: food._id,
                         matchedDishPrice: food.price,
                         matchedDishDescription: food.description,
-                        price: food.price
+                        price: food.price,
+                        slug: (r.slug && r.slug !== '-') ? r.slug : String(r._id)
                     });
                 }
             });

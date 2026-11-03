@@ -320,6 +320,54 @@ export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
     availableCashLimit: Number(partnerCapacity.availableCashLimit || 0),
   };
 
+  const partner = await FoodDeliveryPartner.findById(deliveryPartnerId).lean();
+  let partnerZoneId = partner?.zoneId ? String(partner.zoneId) : null;
+  const partnerLat = Number(query?.lat ?? partner?.lastLat);
+  const partnerLng = Number(query?.lng ?? partner?.lastLng);
+
+  // Auto-detect zone from GPS coordinates if zoneId not explicitly bound
+  if (!partnerZoneId && Number.isFinite(partnerLat) && Number.isFinite(partnerLng)) {
+    try {
+      const { FoodZone } = await import('../../admin/models/zone.model.js');
+      const zones = await FoodZone.find({ isActive: true }).lean();
+      for (const z of zones) {
+        if (Array.isArray(z.coordinates) && z.coordinates.length >= 3) {
+          const poly = z.coordinates.map(c => [Number(c.longitude), Number(c.latitude)]);
+          let inside = false;
+          for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+            const xi = poly[i][0], yi = poly[i][1];
+            const xj = poly[j][0], yj = poly[j][1];
+            const intersect = ((yi > partnerLat) !== (yj > partnerLat))
+              && (partnerLng < (xj - xi) * (partnerLat - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+          }
+          if (inside) {
+            partnerZoneId = String(z._id);
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  // Fallback: match zone from delivery partner city
+  if (!partnerZoneId && partner?.city) {
+    try {
+      const { FoodZone } = await import('../../admin/models/zone.model.js');
+      const matchedZone = await FoodZone.findOne({
+        isActive: true,
+        $or: [
+          { name: new RegExp(`^${partner.city.trim()}$`, 'i') },
+          { zoneName: new RegExp(`^${partner.city.trim()}$`, 'i') },
+          { serviceLocation: new RegExp(`^${partner.city.trim()}$`, 'i') }
+        ]
+      }).lean();
+      if (matchedZone) {
+        partnerZoneId = String(matchedZone._id);
+      }
+    } catch (_) {}
+  }
+
   const activeOwnOrderFilter = {
     'dispatch.deliveryPartnerId': new mongoose.Types.ObjectId(deliveryPartnerId),
     orderStatus: {
@@ -332,13 +380,18 @@ export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
     },
   };
 
+  const unassignedOrderFilter = {
+    'dispatch.status': 'unassigned',
+    orderStatus: { $in: ['confirmed', 'preparing', 'ready_for_pickup'] },
+    ...(partnerZoneId && mongoose.Types.ObjectId.isValid(partnerZoneId)
+      ? { zoneId: new mongoose.Types.ObjectId(partnerZoneId) }
+      : {})
+  };
+
   const filter = partnerCapacity.hasCapacity
     ? {
         $or: [
-          {
-            'dispatch.status': 'unassigned',
-            orderStatus: { $in: ['confirmed', 'preparing', 'ready_for_pickup'] },
-          },
+          unassignedOrderFilter,
           activeOwnOrderFilter,
         ],
       }

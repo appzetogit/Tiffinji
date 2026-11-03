@@ -12,6 +12,14 @@ import { locationAPI, userAPI } from "@food/api"
 import { Loader } from '@googlemaps/js-api-loader'
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
+import {
+  CITY_COORDINATES_MAP,
+  calculateDistanceInKm,
+  sanitizeLocationCoords,
+  persistUserLocation,
+  readStoredUserLocation,
+  notifyLocationUpdated
+} from "@food/utils/locationPersistence"
 
 const debugLog = (...args) => { }
 const debugWarn = (...args) => { }
@@ -51,7 +59,17 @@ export default function AddressSelectorPage() {
   const { location, loading, requestLocation } = useGeoLocation()
   const { addresses = [], addAddress, updateAddress, deleteAddress, setDefaultAddress, userProfile, isAuthenticated } = useProfile()
   const [showAddressForm, setShowAddressForm] = useState(false)
-  const [mapPosition, setMapPosition] = useState([22.7196, 75.8577]) // Default Indore coordinates [lat, lng]
+  const [mapPosition, setMapPosition] = useState(() => {
+    if (location?.latitude && location?.longitude) {
+      const sanitized = sanitizeLocationCoords(location)
+      return [sanitized.latitude, sanitized.longitude]
+    }
+    const stored = readStoredUserLocation()
+    if (stored?.latitude && stored?.longitude) {
+      return [stored.latitude, stored.longitude]
+    }
+    return [22.7196, 75.8577]
+  })
   const [addressFormData, setAddressFormData] = useState({
     street: "",
     city: "",
@@ -250,12 +268,58 @@ export default function AddressSelectorPage() {
 
   const handleSelectSavedAddress = async (address) => {
     const id = getAddressId(address)
+    
+    // Extract coordinates directly from selected address
+    let lat = null
+    let lng = null
+    if (address?.location?.coordinates && address.location.coordinates.length >= 2) {
+      lng = Number(address.location.coordinates[0])
+      lat = Number(address.location.coordinates[1])
+    } else if (address?.latitude && address?.longitude) {
+      lat = Number(address.latitude)
+      lng = Number(address.longitude)
+    }
+
+    const sanitized = sanitizeLocationCoords({
+      latitude: lat,
+      longitude: lng,
+      city: address?.city,
+      street: address?.street,
+      address: address?.additionalDetails
+    })
+    lat = sanitized.latitude
+    lng = sanitized.longitude
+
+    const parts = [
+      address?.additionalDetails,
+      address?.street,
+      address?.city,
+      address?.state,
+      address?.zipCode
+    ].filter(Boolean)
+    const formatted = parts.length > 0 ? parts.join(", ") : address?.formattedAddress || address?.address || ""
+
+    const locationData = {
+      latitude: lat,
+      longitude: lng,
+      city: address?.city || "",
+      state: address?.state || "",
+      area: address?.additionalDetails || address?.street || "",
+      street: address?.street || "",
+      address: formatted,
+      formattedAddress: formatted,
+      label: address?.label || "Home"
+    }
+
+    // Persist and notify globally immediately so Home page switches zone instantly
+    persistUserLocation(locationData, { mode: 'saved' })
+    notifyLocationUpdated(locationData)
+
     if (id) {
       await setDefaultAddress(id)
-      try { localStorage.setItem("deliveryAddressMode", "saved") } catch { }
-      toast.success("Address selected")
-      handleBack()
     }
+    toast.success("Address selected")
+    handleBack()
   }
 
   const handleEditAddress = (e, addr) => {
@@ -272,13 +336,22 @@ export default function AddressSelectorPage() {
     })
 
     let lat = 22.7196, lng = 75.8577
-    if (addr.location?.coordinates) {
-      lng = addr.location.coordinates[0]
-      lat = addr.location.coordinates[1]
+    if (addr.location?.coordinates && addr.location.coordinates.length >= 2) {
+      lng = Number(addr.location.coordinates[0])
+      lat = Number(addr.location.coordinates[1])
     } else if (addr.latitude && addr.longitude) {
-      lat = addr.latitude
-      lng = addr.longitude
+      lat = Number(addr.latitude)
+      lng = Number(addr.longitude)
     }
+    const sanitized = sanitizeLocationCoords({
+      latitude: lat,
+      longitude: lng,
+      city: addr.city,
+      street: addr.street,
+      address: addr.additionalDetails
+    })
+    lat = sanitized.latitude
+    lng = sanitized.longitude
     setMapPosition([lat, lng])
     setCurrentAddress([addr.additionalDetails, addr.street, addr.city].filter(Boolean).join(", "))
 
@@ -440,45 +513,51 @@ export default function AddressSelectorPage() {
 
   const handleAddressFormSubmit = async (e) => {
     e.preventDefault()
-    if (!isAuthenticated) {
-      if (!addressFormData.street || !addressFormData.city) {
-        toast.error("Please fill required fields")
-        return
-      }
+    if (!addressFormData.street || !addressFormData.city) {
+      toast.error("Please fill required fields")
+      return
+    }
 
+    // Determine correct coordinates
+    let lat = mapPosition[0]
+    let lng = mapPosition[1]
+    const sanitized = sanitizeLocationCoords({
+      latitude: lat,
+      longitude: lng,
+      city: addressFormData.city,
+      street: addressFormData.street,
+      address: addressFormData.additionalDetails
+    })
+    lat = sanitized.latitude
+    lng = sanitized.longitude
+
+    if (!isAuthenticated) {
       const locData = {
-        latitude: mapPosition[0],
-        longitude: mapPosition[1],
+        latitude: lat,
+        longitude: lng,
         address: [addressFormData.additionalDetails, addressFormData.street, addressFormData.city].filter(Boolean).join(", "),
-        formattedAddress: currentAddress,
+        formattedAddress: currentAddress || [addressFormData.additionalDetails, addressFormData.street, addressFormData.city].filter(Boolean).join(", "),
         city: addressFormData.city,
         state: addressFormData.state,
         area: addressFormData.additionalDetails || "",
         label: addressFormData.label
       }
 
-      try {
-        localStorage.setItem("userLocation", JSON.stringify(locData))
-        localStorage.setItem("deliveryAddressMode", "saved")
-        window.dispatchEvent(new CustomEvent("userLocationUpdated", { detail: locData }))
-      } catch (e) { }
-
+      persistUserLocation(locData, { mode: 'saved' })
+      notifyLocationUpdated(locData)
       toast.success("Location set successfully")
       handleBack()
       return
     }
-    if (!addressFormData.street || !addressFormData.city) {
-      toast.error("Please fill required fields")
-      return
-    }
+
     setLoadingAddress(true)
     try {
       const payload = {
         ...addressFormData,
         label: addressFormData.label === "Work" ? "Office" : addressFormData.label,
-        location: { type: "Point", coordinates: [mapPosition[1], mapPosition[0]] },
-        latitude: mapPosition[0],
-        longitude: mapPosition[1]
+        location: { type: "Point", coordinates: [lng, lat] },
+        latitude: lat,
+        longitude: lng
       }
       let createdOrUpdated;
       if (addressFormData.id) {
@@ -490,6 +569,20 @@ export default function AddressSelectorPage() {
       if (createdOrUpdated) {
         const id = getAddressId(createdOrUpdated)
         if (id) await setDefaultAddress(id)
+        
+        const locData = {
+          latitude: lat,
+          longitude: lng,
+          city: addressFormData.city,
+          state: addressFormData.state,
+          address: [addressFormData.additionalDetails, addressFormData.street, addressFormData.city].filter(Boolean).join(", "),
+          formattedAddress: currentAddress || [addressFormData.additionalDetails, addressFormData.street, addressFormData.city].filter(Boolean).join(", "),
+          area: addressFormData.additionalDetails || "",
+          label: addressFormData.label
+        }
+        persistUserLocation(locData, { mode: 'saved' })
+        notifyLocationUpdated(locData)
+
         try { localStorage.setItem("deliveryAddressMode", "saved") } catch { }
         toast.success(addressFormData.id ? "Address updated" : "Address saved")
         handleBack()
@@ -800,10 +893,18 @@ export default function AddressSelectorPage() {
               addresses.map((addr, idx) => {
                 const Icon = getAddressIcon(addr)
                 return (
-                  <button
+                  <div
                     key={getAddressId(addr) || idx}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => handleSelectSavedAddress(addr)}
-                    className="w-full flex items-start gap-4 p-4 bg-slate-50 dark:bg-[#1a1a1a] rounded-xl hover:bg-[#7e386610] dark:hover:bg-[#7e386620] transition-colors text-left group"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        handleSelectSavedAddress(addr)
+                      }
+                    }}
+                    className="w-full flex items-start gap-4 p-4 bg-slate-50 dark:bg-[#1a1a1a] rounded-xl hover:bg-[#7e386610] dark:hover:bg-[#7e386620] transition-colors text-left group cursor-pointer"
                   >
                     <div className="h-10 w-10 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center shadow-sm">
                       <Icon className="h-5 w-5 text-gray-600 dark:text-gray-400" />
@@ -815,14 +916,14 @@ export default function AddressSelectorPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
-                      <button onClick={(e) => handleEditAddress(e, addr)} className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                      <button type="button" onClick={(e) => handleEditAddress(e, addr)} className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
                         <Pencil className="h-4 w-4 text-gray-500" />
                       </button>
-                      <button onClick={(e) => handleDeleteAddress(e, addr)} className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors group-hover:bg-red-50 dark:group-hover:bg-red-900/10">
+                      <button type="button" onClick={(e) => handleDeleteAddress(e, addr)} className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors group-hover:bg-red-50 dark:group-hover:bg-red-900/10">
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </button>
                     </div>
-                  </button>
+                  </div>
                 )
               })
             )}
