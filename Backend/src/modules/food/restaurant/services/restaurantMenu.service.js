@@ -127,9 +127,19 @@ export async function getPublicApprovedRestaurantMenu(restaurantIdOrSlug) {
         restaurant = await FoodRestaurant.findOne({ _id: value, status: 'approved' })
             .select('_id status')
             .lean();
-    } else {
+    }
+    
+    if (!restaurant) {
         const normalized = value.trim().toLowerCase().replace(/-/g, ' ').replace(/\s+/g, ' ');
-        restaurant = await FoodRestaurant.findOne({ restaurantNameNormalized: normalized, status: 'approved' })
+        const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        restaurant = await FoodRestaurant.findOne({
+            status: 'approved',
+            $or: [
+                { slug: value.toLowerCase() },
+                { restaurantNameNormalized: normalized },
+                { restaurantName: { $regex: new RegExp(`^${escaped}$`, 'i') } }
+            ]
+        })
             .select('_id status')
             .lean();
     }
