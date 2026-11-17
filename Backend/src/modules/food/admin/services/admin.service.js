@@ -3923,91 +3923,8 @@ export async function updateDeliverySupportTicket(id, body = {}) {
 }
 
 // ----- Delivery partners (approved list) -----
-export async function getDeliveryPartners(query) {
-    const { page = 1, limit = 1000, search } = query;
-    const filter = { status: 'approved' };
-    if (search && typeof search === 'string' && search.trim()) {
-        const term = search.trim();
-        filter.$or = [
-            { name: { $regex: term, $options: 'i' } },
-            { phone: { $regex: term, $options: 'i' } },
-            { email: { $regex: term, $options: 'i' } },
-            { city: { $regex: term, $options: 'i' } },
-            { state: { $regex: term, $options: 'i' } }
-        ];
-    }
 
-    const skip = Math.max(0, (Number(page) || 1) - 1) * Math.max(1, Math.min(1000, Number(limit) || 100));
-    const limitNum = Math.max(1, Math.min(1000, Number(limit) || 100));
 
-    const [list, total] = await Promise.all([
-        FoodDeliveryPartner.find(filter)
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limitNum)
-            .lean(),
-        FoodDeliveryPartner.countDocuments(filter)
-    ]);
-
-    // Fetch total orders for these partners in real-time
-    const partnerIds = list.map((p) => p._id);
-    const orderCounts = await FoodOrder.aggregate([
-        {
-            $match: {
-                'dispatch.deliveryPartnerId': { $in: partnerIds },
-                orderStatus: 'delivered'
-            }
-        },
-        {
-            $group: {
-                _id: '$dispatch.deliveryPartnerId',
-                count: { $sum: 1 }
-            }
-        }
-    ]);
-
-    const countsMap = new Map(
-        (orderCounts || []).map((c) => [String(c._id), c.count])
-    );
-
-    const deliveryPartners = list.map((doc, index) => ({
-        _id: doc._id,
-        sl: skip + index + 1,
-        name: doc.name || '',
-        email: doc.email || '',
-        phone: doc.phone || '',
-        deliveryId: doc._id ? `DP-${doc._id.toString().slice(-8).toUpperCase()}` : null,
-        zone: doc.city || doc.state || doc.address || '',
-        vehicleType: doc.vehicleType || '',
-        status: doc.status,
-        totalOrders: countsMap.get(String(doc._id)) || 0,
-        profilePhoto: doc.profilePhoto || null,
-        profileImage: doc.profilePhoto ? { url: doc.profilePhoto } : null,
-        lastLat: doc.lastLat || null,
-        lastLng: doc.lastLng || null,
-        lastLocationAt: doc.lastLocationAt || null,
-        availabilityStatus: doc.availabilityStatus || 'offline'
-    }));
-
-    return {
-        deliveryPartners,
-        pagination: {
-            page: Number(page) || 1,
-            limit: limitNum,
-            total,
-            pages: Math.ceil(total / limitNum) || 1
-        }
-    };
-}
-
-// ----- Delivery partner bonus (admin) -----
-function generateBonusTransactionId() {
-    const n = Date.now().toString(36).slice(-6).toUpperCase();
-    const r = Math.random().toString(36).slice(2, 6).toUpperCase();
-    return `BON-${n}${r}`;
-}
-
-export async function getDeliveryPartnerBonusTransactions(query = {}) {
     const { page = 1, limit = 1000, search } = query;
     const filter = {};
 
@@ -4816,6 +4733,30 @@ export async function rejectDeliveryPartner(id, reason) {
         }
     }
     return updated;
+}
+
+export async function deleteDeliveryPartner(id) {
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+    const partnerId = new mongoose.Types.ObjectId(id);
+
+    const partner = await FoodDeliveryPartner.findById(partnerId);
+    if (!partner) return null;
+
+    // Deactivate / block delivery partner and set offline
+    partner.status = 'rejected';
+    partner.availabilityStatus = 'offline';
+    partner.fcmTokens = [];
+    partner.fcmTokenMobile = [];
+    partner.rejectionReason = 'Deactivated by Admin';
+    partner.rejectedAt = new Date();
+    await partner.save();
+
+    // Revoke all active refresh tokens so partner is immediately logged out
+    try {
+        await FoodRefreshToken.deleteMany({ userId: partnerId });
+    } catch (_) {}
+
+    return partner.toObject ? partner.toObject() : partner;
 }
 
 // ----- Zones CRUD -----
