@@ -41,6 +41,40 @@ function isRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function getTargetModuleFromPayload(payload = {}) {
+  // 1. Explicit target module in data
+  const explicitModule = payload?.data?.targetModule;
+  if (explicitModule) return String(explicitModule).trim().toLowerCase();
+
+  // 2. Owner type or target role in data
+  const role = String(payload?.data?.targetRole || payload?.data?.ownerType || "").trim().toUpperCase();
+  if (role === "DELIVERY_PARTNER" || role === "DELIVERY" || role === "RIDER") return "delivery";
+  if (role === "RESTAURANT") return "restaurant";
+  if (role === "ADMIN") return "admin";
+  if (role === "USER") return "user";
+
+  // 3. Inspect target URL or link in data or notification
+  const rawLink =
+    payload?.data?.link ||
+    payload?.data?.targetUrl ||
+    payload?.data?.click_action ||
+    payload?.fcmOptions?.link ||
+    "";
+  if (rawLink) {
+    if (rawLink.includes("/restaurant") && !rawLink.includes("/restaurants")) return "restaurant";
+    if (rawLink.includes("/delivery")) return "delivery";
+    if (rawLink.includes("/admin")) return "admin";
+    if (rawLink.includes("/user")) return "user";
+  }
+
+  // 4. Inspect data type
+  const type = String(payload?.data?.type || "").toLowerCase();
+  if (type === "new_order" || type === "delivery_offer" || type === "order_dispatch") return "delivery";
+  if (type.startsWith("admin_")) return "admin";
+
+  return null;
+}
+
 function getPushSoundSources(moduleName = normalizeModuleFromPath()) {
   // Delivery and restaurant should always use the alert tone for FCM pushes.
   if (moduleName === "delivery" || moduleName === "restaurant") {
@@ -520,6 +554,20 @@ function showForegroundNotification(payload = {}, options = {}) {
   }
 
   const moduleName = normalizeModuleFromPath();
+  const targetModule = getTargetModuleFromPayload(payload);
+
+  // STRICT TARGET MODULE VALIDATION:
+  // If this notification is targeted to a specific module and current tab is not on that module,
+  // ignore it completely! (Prevents customer notifications on delivery screen, etc.)
+  if (targetModule && targetModule !== moduleName) {
+    pushDebugLog(PUSH_DEBUG_PREFIX, "Suppressed notification intended for different module", {
+      targetModule,
+      currentModule: moduleName,
+      payload,
+    });
+    return;
+  }
+
   const notificationKey = getNotificationKey(payload);
   pushDebugLog(PUSH_DEBUG_PREFIX, "showForegroundNotification received", { notificationKey, fromSwRelay: options.fromSwRelay, payload });
   if (wasRecentlyHandled(notificationKey)) {
@@ -552,13 +600,14 @@ function showForegroundNotification(payload = {}, options = {}) {
     payload?.data?.orderId ||
     payload?.data?.id ||
     "";
+  // ONLY treat as a new delivery incoming order accept prompt if it is genuinely a new order dispatch
   const isDeliveryOrderSignal =
     moduleName === "delivery" &&
     Boolean(
-      payloadOrderId ||
       payload?.data?.type === "new_order" ||
-      title.toLowerCase().includes("order") ||
-      body.toLowerCase().includes("order")
+      payload?.data?.type === "delivery_offer" ||
+      payload?.data?.type === "order_dispatch" ||
+      payload?.data?.action === "new_order"
     );
 
   if (typeof window !== "undefined" && isDeliveryOrderSignal) {

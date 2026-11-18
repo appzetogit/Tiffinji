@@ -33,43 +33,81 @@ async function notifyOpenClients(payload) {
   });
 }
 
+function getTargetModuleFromPayload(payload = {}) {
+  const explicit = payload?.data?.targetModule;
+  if (explicit) return String(explicit).trim().toLowerCase();
+
+  const ownerType = String(payload?.data?.ownerType || payload?.data?.targetRole || "").toUpperCase();
+  if (ownerType === "DELIVERY_PARTNER" || ownerType === "DELIVERY" || ownerType === "RIDER") return "delivery";
+  if (ownerType === "RESTAURANT") return "restaurant";
+  if (ownerType === "ADMIN") return "admin";
+  if (ownerType === "USER") return "user";
+
+  const rawTarget =
+    payload?.data?.targetUrl ||
+    payload?.data?.link ||
+    payload?.data?.click_action ||
+    payload?.fcmOptions?.link ||
+    "";
+  if (rawTarget.includes("/restaurant") && !rawTarget.includes("/restaurants")) return "restaurant";
+  if (rawTarget.includes("/delivery")) return "delivery";
+  if (rawTarget.includes("/admin")) return "admin";
+  if (rawTarget.includes("/user")) return "user";
+
+  return null;
+}
+
 function getTargetPathFromPayload(payload = {}) {
   const rawTarget =
     payload?.data?.targetUrl ||
     payload?.data?.link ||
     payload?.data?.click_action ||
     payload?.fcmOptions?.link ||
-    "/";
+    "";
 
-  try {
-    const url = new URL(rawTarget, self.location.origin);
-    return url.pathname || "/";
-  } catch {
-    return "/";
+  if (rawTarget) {
+    try {
+      const url = new URL(rawTarget, self.location.origin);
+      return url.pathname || "/";
+    } catch {
+      return String(rawTarget).startsWith("/") ? rawTarget : "/";
+    }
   }
+
+  const targetModule = getTargetModuleFromPayload(payload);
+  if (targetModule === "delivery") return "/food/delivery/feed";
+  if (targetModule === "restaurant") return "/food/restaurant/orders";
+  if (targetModule === "admin") return "/food/admin";
+  if (targetModule === "user") return "/food/user/orders";
+
+  return "/";
 }
 
 async function hasVisibleClientForTarget(payload = {}) {
   const windowClients = await clients.matchAll({ type: "window", includeUncontrolled: true });
-  const targetPath = getTargetPathFromPayload(payload);
-  const targetRoot = `/${String(targetPath).split("/").filter(Boolean)[0] || ""}`;
+  const targetModule = getTargetModuleFromPayload(payload);
+
   const visibleClient = windowClients.find((client) => {
     const isVisible = client.visibilityState === "visible" || client.focused;
     if (!isVisible) return false;
+    if (!targetModule) return true;
     try {
       const clientUrl = new URL(client.url);
-      if (targetRoot === "/" || !targetRoot) {
-        return true;
+      const clientPath = clientUrl.pathname || "";
+      if (targetModule === "delivery") return clientPath.includes("/delivery");
+      if (targetModule === "restaurant") return clientPath.includes("/restaurant") && !clientPath.includes("/restaurants");
+      if (targetModule === "admin") return clientPath.includes("/admin");
+      if (targetModule === "user") {
+        return clientPath.includes("/user") || clientPath === "/" || (!clientPath.includes("/delivery") && !clientPath.includes("/restaurant") && !clientPath.includes("/admin"));
       }
-      return clientUrl.pathname.startsWith(targetRoot);
+      return true;
     } catch {
       return false;
     }
   });
   pushDebugLog(PUSH_DEBUG_PREFIX, "Visible client check", {
     count: windowClients.length,
-    targetPath,
-    targetRoot,
+    targetModule,
     hasVisibleClient: Boolean(visibleClient),
     clients: windowClients.map((client) => ({
       url: client.url,
@@ -191,8 +229,17 @@ self.addEventListener("notificationclick", (event) => {
     event?.notification?.data?.link ||
     event?.notification?.data?.click_action ||
     event?.notification?.data?.targetUrl ||
-    "/";
-  const targetUrl = String(rawLink || "/").startsWith("/") ? String(rawLink || "/") : "/";
+    "";
+  let targetUrl = "/";
+  if (rawLink && String(rawLink).startsWith("/")) {
+    targetUrl = rawLink;
+  } else {
+    const targetModule = getTargetModuleFromPayload({ data: event?.notification?.data });
+    if (targetModule === "delivery") targetUrl = "/food/delivery/feed";
+    else if (targetModule === "restaurant") targetUrl = "/food/restaurant/orders";
+    else if (targetModule === "admin") targetUrl = "/food/admin";
+    else targetUrl = "/food/user/orders";
+  }
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
       const client = windowClients.find((c) => c.url.includes(self.location.origin));

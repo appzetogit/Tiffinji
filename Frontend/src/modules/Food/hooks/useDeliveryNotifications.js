@@ -560,6 +560,13 @@ export const useDeliveryNotifications = () => {
         return;
       }
 
+      // Guard: Only trigger incoming order modal for genuine new order dispatches
+      const payloadType = detail?.payload?.data?.type;
+      if (payloadType && payloadType !== 'new_order' && payloadType !== 'delivery_offer' && payloadType !== 'order_dispatch') {
+        debugLog('Ignored delivery FCM alert bridge because type is not new order dispatch', payloadType);
+        return;
+      }
+
       const hintedOrder = normalizeIncomingOrder({
         orderId: detail?.orderId || detail?.orderMongoId,
         orderMongoId: detail?.orderMongoId || detail?.orderId,

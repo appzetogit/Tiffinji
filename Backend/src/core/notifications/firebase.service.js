@@ -285,6 +285,27 @@ export const upsertFirebaseDeviceToken = async ({ ownerType, ownerId, token, pla
     
     await doc.save();
     console.log(`[FCM-DEBUG] upsert - Token list updated. New count: ${tokens.length}`);
+
+    // Disassociate this token from other owners and conflicting roles on the same device
+    try {
+        const normalizedOwnerType = String(ownerType).toUpperCase();
+        for (const [otherType, otherModel] of Object.entries(OWNER_MODELS)) {
+            if (otherType === normalizedOwnerType) {
+                await otherModel.updateMany(
+                    { _id: { $ne: ownerId }, [field]: normalizedToken },
+                    { $pull: { [field]: normalizedToken } }
+                );
+            } else {
+                await otherModel.updateMany(
+                    { $or: [{ fcmTokens: normalizedToken }, { fcmTokenMobile: normalizedToken }] },
+                    { $pull: { fcmTokens: normalizedToken, fcmTokenMobile: normalizedToken } }
+                );
+            }
+        }
+    } catch (cleanupErr) {
+        logger.warn(`Failed to clean up duplicate FCM tokens across models: ${cleanupErr?.message || cleanupErr}`);
+    }
+
     return { success: true };
 };
 
@@ -370,8 +391,23 @@ export const sendPushNotification = async (tokens, payload = {}) => {
 };
 
 export const sendNotificationToOwner = async ({ ownerType, ownerId, payload, platform } = {}) => {
+    const normalizedOwnerType = String(ownerType || '').toUpperCase();
+    const targetModule =
+        normalizedOwnerType === 'DELIVERY_PARTNER' ? 'delivery' :
+        normalizedOwnerType === 'RESTAURANT' ? 'restaurant' :
+        normalizedOwnerType === 'ADMIN' ? 'admin' : 'user';
+
     // 💡 Clone the payload to avoid side-effects (e.g. adding multiple prefixes to the same object during broadcasting)
-    const enrichedPayload = { ...payload };
+    const enrichedPayload = {
+        ...payload,
+        data: {
+            ...(payload?.data || {}),
+            ownerType: normalizedOwnerType,
+            targetRole: normalizedOwnerType,
+            targetModule,
+            recipientId: String(ownerId || ''),
+        },
+    };
 
     // 🏷️ Add Highlighter Prefix to the Title
     if (enrichedPayload && !enrichedPayload.skipHighlighter) {
